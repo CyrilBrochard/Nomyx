@@ -1,10 +1,11 @@
 import jwt from "jsonwebtoken";
 import { Request, Response, NextFunction } from "express";
 
-const JWT_SECRET = process.env.JWT_SECRET;
-if (!JWT_SECRET) {
+const rawSecret = process.env.JWT_SECRET;
+if (!rawSecret) {
   throw new Error("JWT_SECRET environment variable is required but was not set.");
 }
+const JWT_SECRET: string = rawSecret;
 
 export interface JwtPayload {
   userId: number;
@@ -17,7 +18,7 @@ export function signToken(payload: JwtPayload): string {
 }
 
 export function verifyToken(token: string): JwtPayload {
-  return jwt.verify(token, JWT_SECRET) as JwtPayload;
+  return jwt.verify(token, JWT_SECRET) as unknown as JwtPayload;
 }
 
 declare global {
