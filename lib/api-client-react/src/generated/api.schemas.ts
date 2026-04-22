@@ -30,11 +30,32 @@ export interface UserInfo {
   email: string;
   teamId: number;
   teamName: string;
+  role: string;
 }
 
 export interface AuthResponse {
   token: string;
   user: UserInfo;
+}
+
+export interface TeamMember {
+  id: number;
+  email: string;
+  role: string;
+  createdAt: string;
+}
+
+export interface InviteResponse {
+  inviteUrl: string;
+  token: string;
+  expiresAt: string;
+}
+
+export interface AcceptInviteBody {
+  token: string;
+  email: string;
+  /** @minLength 6 */
+  password: string;
 }
 
 export interface Dimension {

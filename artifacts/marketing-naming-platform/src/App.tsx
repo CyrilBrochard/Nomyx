@@ -7,9 +7,9 @@ import NotFound from "@/pages/not-found";
 import { AuthProvider, useAuth } from "@/hooks/use-auth";
 import { Layout } from "@/components/layout";
 
-// Pages to create next
 import Login from "@/pages/login";
 import Register from "@/pages/register";
+import Join from "@/pages/join";
 import Generator from "@/pages/generator";
 import Dimensions from "@/pages/dimensions";
 import Outputs from "@/pages/outputs";
@@ -39,7 +39,7 @@ function Router() {
 
   if (!isReady) return null;
 
-  if (isAuthenticated && (location === "/login" || location === "/register")) {
+  if (isAuthenticated && (location === "/login" || location === "/register" || location.startsWith("/join"))) {
     return <Redirect to="/generator" />;
   }
 
@@ -47,6 +47,7 @@ function Router() {
     <Switch>
       <Route path="/login" component={Login} />
       <Route path="/register" component={Register} />
+      <Route path="/join" component={Join} />
       
       <Route path="/">
         {() => <ProtectedRoute component={Generator} />}

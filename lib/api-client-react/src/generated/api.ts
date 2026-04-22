@@ -17,6 +17,7 @@ import type {
 } from "@tanstack/react-query";
 
 import type {
+  AcceptInviteBody,
   AuthResponse,
   CreateDimensionBody,
   CreateDimensionValueBody,
@@ -30,10 +31,12 @@ import type {
   GenerateResponse,
   HealthStatus,
   ImportResult,
+  InviteResponse,
   LoginBody,
   Output,
   RegisterBody,
   TeamConfig,
+  TeamMember,
   UpdateDimensionBody,
   UpdateDimensionValueBody,
   UpdateOutputBody,
@@ -359,6 +362,248 @@ export function useGetMe<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+/**
+ * @summary List all members of the current team
+ */
+export const getListTeamMembersUrl = () => {
+  return `/api/team/members`;
+};
+
+export const listTeamMembers = async (
+  options?: RequestInit,
+): Promise<TeamMember[]> => {
+  return customFetch<TeamMember[]>(getListTeamMembersUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListTeamMembersQueryKey = () => {
+  return [`/api/team/members`] as const;
+};
+
+export const getListTeamMembersQueryOptions = <
+  TData = Awaited<ReturnType<typeof listTeamMembers>>,
+  TError = ErrorType<ErrorResponse>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listTeamMembers>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListTeamMembersQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listTeamMembers>>> = ({
+    signal,
+  }) => listTeamMembers({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listTeamMembers>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListTeamMembersQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listTeamMembers>>
+>;
+export type ListTeamMembersQueryError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary List all members of the current team
+ */
+
+export function useListTeamMembers<
+  TData = Awaited<ReturnType<typeof listTeamMembers>>,
+  TError = ErrorType<ErrorResponse>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listTeamMembers>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListTeamMembersQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Generate an invite link for the current team (owner only)
+ */
+export const getCreateInviteUrl = () => {
+  return `/api/team/invite`;
+};
+
+export const createInvite = async (
+  options?: RequestInit,
+): Promise<InviteResponse> => {
+  return customFetch<InviteResponse>(getCreateInviteUrl(), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getCreateInviteMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createInvite>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createInvite>>,
+  TError,
+  void,
+  TContext
+> => {
+  const mutationKey = ["createInvite"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createInvite>>,
+    void
+  > = () => {
+    return createInvite(requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateInviteMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createInvite>>
+>;
+
+export type CreateInviteMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Generate an invite link for the current team (owner only)
+ */
+export const useCreateInvite = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createInvite>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createInvite>>,
+  TError,
+  void,
+  TContext
+> => {
+  return useMutation(getCreateInviteMutationOptions(options));
+};
+
+/**
+ * @summary Register a new user under an existing team using an invite token
+ */
+export const getAcceptInviteUrl = () => {
+  return `/api/auth/invite/accept`;
+};
+
+export const acceptInvite = async (
+  acceptInviteBody: AcceptInviteBody,
+  options?: RequestInit,
+): Promise<AuthResponse> => {
+  return customFetch<AuthResponse>(getAcceptInviteUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(acceptInviteBody),
+  });
+};
+
+export const getAcceptInviteMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof acceptInvite>>,
+    TError,
+    { data: BodyType<AcceptInviteBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof acceptInvite>>,
+  TError,
+  { data: BodyType<AcceptInviteBody> },
+  TContext
+> => {
+  const mutationKey = ["acceptInvite"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof acceptInvite>>,
+    { data: BodyType<AcceptInviteBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return acceptInvite(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AcceptInviteMutationResult = NonNullable<
+  Awaited<ReturnType<typeof acceptInvite>>
+>;
+export type AcceptInviteMutationBody = BodyType<AcceptInviteBody>;
+export type AcceptInviteMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Register a new user under an existing team using an invite token
+ */
+export const useAcceptInvite = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof acceptInvite>>,
+    TError,
+    { data: BodyType<AcceptInviteBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof acceptInvite>>,
+  TError,
+  { data: BodyType<AcceptInviteBody> },
+  TContext
+> => {
+  return useMutation(getAcceptInviteMutationOptions(options));
+};
 
 /**
  * @summary List all dimensions for the current team

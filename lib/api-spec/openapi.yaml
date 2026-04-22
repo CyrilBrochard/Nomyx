@@ -12,6 +12,8 @@ tags:
     description: Health operations
   - name: auth
     description: Authentication
+  - name: team
+    description: Team management
   - name: dimensions
     description: Naming dimensions
   - name: dimension-values
@@ -116,6 +118,87 @@ paths:
                 $ref: "#/components/schemas/UserInfo"
         "401":
           description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /team/members:
+    get:
+      operationId: listTeamMembers
+      tags: [team]
+      summary: List all members of the current team
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: List of team members
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TeamMember"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /team/invite:
+    post:
+      operationId: createInvite
+      tags: [team]
+      summary: Generate an invite link for the current team (owner only)
+      security:
+        - bearerAuth: []
+      responses:
+        "201":
+          description: Invite created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InviteResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden – only owners can create invites
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/invite/accept:
+    post:
+      operationId: acceptInvite
+      tags: [auth]
+      summary: Register a new user under an existing team using an invite token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AcceptInviteBody"
+      responses:
+        "201":
+          description: User registered under invited team
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "400":
+          description: Bad request or invalid/expired token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Email already in use
           content:
             application/json:
               schema:
@@ -742,11 +825,63 @@ components:
           type: integer
         teamName:
           type: string
+        role:
+          type: string
       required:
         - id
         - email
         - teamId
         - teamName
+        - role
+
+    TeamMember:
+      type: object
+      properties:
+        id:
+          type: integer
+        email:
+          type: string
+        role:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - email
+        - role
+        - createdAt
+
+    InviteResponse:
+      type: object
+      properties:
+        inviteUrl:
+          type: string
+        token:
+          type: string
+        expiresAt:
+          type: string
+          format: date-time
+      required:
+        - inviteUrl
+        - token
+        - expiresAt
+
+    AcceptInviteBody:
+      type: object
+      properties:
+        token:
+          type: string
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 6
+      required:
+        - token
+        - email
+        - password
 
     Dimension:
       type: object

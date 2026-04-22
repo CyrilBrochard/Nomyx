@@ -26,7 +26,7 @@ pnpm workspace monorepo using TypeScript. This is the **Marketing Naming Platfor
 
 ## Key Packages
 
-- `lib/db` — Drizzle ORM schema (teams, users, dimensions, dimension-values, outputs)
+- `lib/db` — Drizzle ORM schema (teams, users, dimensions, dimension-values, outputs, invites)
 - `lib/api-spec` — OpenAPI 3.0 spec + orval codegen config
 - `lib/api-zod` — Generated Zod validation schemas
 - `lib/api-client-react` — Generated TanStack Query hooks + customFetch with JWT bearer injection
@@ -37,11 +37,22 @@ pnpm workspace monorepo using TypeScript. This is the **Marketing Naming Platfor
 - `setAuthTokenGetter` registered in `AuthProvider` so all API calls auto-attach `Authorization: Bearer <token>`
 - Protected routes redirect to `/login` when unauthenticated
 
+## Team Roles & Invite System
+
+- First user to register for a team gets `role: "owner"`; invited users get `role: "member"`
+- Owners can generate invite links (7-day expiry, single-use) via `POST /api/team/invite`
+- Invitees register via `POST /api/auth/invite/accept` using the token, joining the owner's team
+- `/join?token=XXX` frontend page handles invite acceptance
+- Invites stored in `invites` table (`token`, `teamId`, `createdBy`, `expiresAt`, `usedAt`)
+
 ## API Routes (all under `/api/`)
 
-- `POST /auth/register` — create team + user, returns JWT
+- `POST /auth/register` — create team + user (role: owner), returns JWT
 - `POST /auth/login` — returns JWT
-- `GET /auth/me` — current user info
+- `GET /auth/me` — current user info (includes role)
+- `POST /auth/invite/accept` — join a team via invite token (role: member)
+- `GET /team/members` — list all team members (requires auth)
+- `POST /team/invite` — generate invite link (owner-only)
 - `GET/POST /dimensions` — list/create naming dimensions
 - `PUT/DELETE /dimensions/:id` — update/delete dimension
 - `POST /dimensions/:id/duplicate` — duplicate with values

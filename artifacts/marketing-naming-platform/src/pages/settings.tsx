@@ -1,13 +1,16 @@
 import { useRef, useState } from "react";
 import {
   useGetMe,
+  useListTeamMembers,
+  useCreateInvite,
   customFetch,
   type ErrorType,
 } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { Download, Upload, Settings2 } from "lucide-react";
+import { Download, Upload, Settings2, Users, Link, Copy, Check } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 
 function toastError(toast: ReturnType<typeof useToast>["toast"], err: ErrorType<unknown>) {
   const data = err.data as Record<string, string> | null;
@@ -17,10 +20,32 @@ function toastError(toast: ReturnType<typeof useToast>["toast"], err: ErrorType<
 
 export default function Settings() {
   const { data: user } = useGetMe();
+  const { data: members } = useListTeamMembers();
   const { toast } = useToast();
   const fileRef = useRef<HTMLInputElement>(null);
   const [isImporting, setIsImporting] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
+  const [inviteUrl, setInviteUrl] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  const { mutate: generateInvite, isPending: isGeneratingInvite } = useCreateInvite({
+    mutation: {
+      onSuccess(data) {
+        setInviteUrl(data.inviteUrl);
+        toast({ title: "Invite link generated", description: "Share this link with your teammate." });
+      },
+      onError(err: ErrorType<unknown>) {
+        toastError(toast, err);
+      },
+    },
+  });
+
+  async function handleCopyInvite() {
+    if (!inviteUrl) return;
+    await navigator.clipboard.writeText(inviteUrl);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
 
   async function handleExport() {
     setIsExporting(true);
@@ -62,6 +87,8 @@ export default function Settings() {
     }
   }
 
+  const isOwner = user?.role === "owner";
+
   return (
     <div className="p-6 max-w-2xl mx-auto">
       <div className="mb-8">
@@ -86,6 +113,75 @@ export default function Settings() {
               <span className="text-sm text-muted-foreground">Email</span>
               <span className="text-sm font-medium">{user?.email ?? "—"}</span>
             </div>
+            <div className="flex items-center justify-between py-2 border-t">
+              <span className="text-sm text-muted-foreground">Your role</span>
+              <Badge variant={isOwner ? "default" : "secondary"}>
+                {user?.role ?? "—"}
+              </Badge>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <Users className="h-4 w-4" />
+              Team Members
+            </CardTitle>
+            <CardDescription>
+              {isOwner
+                ? "Manage who has access to your workspace."
+                : "People with access to this workspace."}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="divide-y rounded-md border">
+              {members && members.length > 0 ? (
+                members.map((member) => (
+                  <div key={member.id} className="flex items-center justify-between px-4 py-3">
+                    <div>
+                      <p className="text-sm font-medium">{member.email}</p>
+                      <p className="text-xs text-muted-foreground">
+                        Joined {new Date(member.createdAt).toLocaleDateString()}
+                      </p>
+                    </div>
+                    <Badge variant={member.role === "owner" ? "default" : "secondary"}>
+                      {member.role}
+                    </Badge>
+                  </div>
+                ))
+              ) : (
+                <div className="px-4 py-6 text-center text-sm text-muted-foreground">
+                  No members found.
+                </div>
+              )}
+            </div>
+
+            {isOwner && (
+              <div className="space-y-3">
+                <Button
+                  variant="outline"
+                  onClick={() => generateInvite({})}
+                  disabled={isGeneratingInvite}
+                  className="w-full"
+                >
+                  <Link className="h-4 w-4 mr-2" />
+                  {isGeneratingInvite ? "Generating…" : "Generate invite link"}
+                </Button>
+
+                {inviteUrl && (
+                  <div className="flex items-center gap-2 rounded-md border bg-muted/50 px-3 py-2">
+                    <span className="flex-1 text-xs text-muted-foreground truncate">{inviteUrl}</span>
+                    <Button size="icon" variant="ghost" className="h-7 w-7 shrink-0" onClick={handleCopyInvite}>
+                      {copied ? <Check className="h-3.5 w-3.5 text-green-500" /> : <Copy className="h-3.5 w-3.5" />}
+                    </Button>
+                  </div>
+                )}
+                <p className="text-xs text-muted-foreground">
+                  Invite links are valid for 7 days and can only be used once.
+                </p>
+              </div>
+            )}
           </CardContent>
         </Card>
 

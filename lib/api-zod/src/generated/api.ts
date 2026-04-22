@@ -41,6 +41,7 @@ export const LoginResponse = zod.object({
     email: zod.string(),
     teamId: zod.number(),
     teamName: zod.string(),
+    role: zod.string(),
   }),
 });
 
@@ -52,6 +53,29 @@ export const GetMeResponse = zod.object({
   email: zod.string(),
   teamId: zod.number(),
   teamName: zod.string(),
+  role: zod.string(),
+});
+
+/**
+ * @summary List all members of the current team
+ */
+export const ListTeamMembersResponseItem = zod.object({
+  id: zod.number(),
+  email: zod.string(),
+  role: zod.string(),
+  createdAt: zod.coerce.date(),
+});
+export const ListTeamMembersResponse = zod.array(ListTeamMembersResponseItem);
+
+/**
+ * @summary Register a new user under an existing team using an invite token
+ */
+export const acceptInviteBodyPasswordMin = 6;
+
+export const AcceptInviteBody = zod.object({
+  token: zod.string(),
+  email: zod.string().email(),
+  password: zod.string().min(acceptInviteBodyPasswordMin),
 });
 
 /**
