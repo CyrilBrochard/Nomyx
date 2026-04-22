@@ -6,24 +6,44 @@ import { GenerateNamesBody } from "@workspace/api-zod";
 
 const router: IRouter = Router();
 
-function applyTokens(
+function generateFromFormat(
   format: string,
-  codeToValue: Map<string, string>
+  codeToValue: Map<string, string>,
+  separator: string
 ): string {
-  return format.replace(/\[([^\]]+)\]/g, (_, code) => {
-    return codeToValue.get(code) ?? `[${code}]`;
-  });
-}
+  type Segment = { type: "token"; value: string } | { type: "literal"; value: string };
+  const segments: Segment[] = [];
+  const tokenRegex = /\[([^\]]+)\]/g;
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
 
-function applySeparator(result: string, separator: string): string {
-  switch (separator) {
-    case "-":
-      return result.replace(/_/g, "-");
-    case " ":
-      return result.replace(/_/g, " ");
-    default:
-      return result;
+  while ((match = tokenRegex.exec(format)) !== null) {
+    if (match.index > lastIndex) {
+      segments.push({ type: "literal", value: format.slice(lastIndex, match.index) });
+    }
+    const code = match[1];
+    segments.push({ type: "token", value: codeToValue.get(code) ?? `[${code}]` });
+    lastIndex = match.index + match[0].length;
   }
+  if (lastIndex < format.length) {
+    segments.push({ type: "literal", value: format.slice(lastIndex) });
+  }
+
+  let result = "";
+  let prevWasToken = false;
+  for (const seg of segments) {
+    if (seg.type === "token") {
+      if (prevWasToken && separator) {
+        result += separator;
+      }
+      result += seg.value;
+      prevWasToken = true;
+    } else {
+      result += seg.value;
+      prevWasToken = false;
+    }
+  }
+  return result;
 }
 
 router.post("/generate", requireAuth, async (req, res): Promise<void> => {
@@ -71,8 +91,7 @@ router.post("/generate", requireAuth, async (req, res): Promise<void> => {
     .orderBy(asc(outputsTable.id));
 
   const results = outputs.map((output) => {
-    const raw = applyTokens(output.format, codeToValue);
-    const result = applySeparator(raw, output.separator);
+    const result = generateFromFormat(output.format, codeToValue, output.separator);
     return {
       outputId: output.id,
       outputName: output.name,
