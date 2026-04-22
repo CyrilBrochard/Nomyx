@@ -2,7 +2,7 @@
 
 ## Overview
 
-pnpm workspace monorepo using TypeScript. Each package manages its own dependencies.
+pnpm workspace monorepo using TypeScript. This is the **Marketing Naming Platform** — a multi-tenant web app for marketing teams to define naming dimensions, output formats, and generate consistent naming conventions.
 
 ## Stack
 
@@ -13,8 +13,46 @@ pnpm workspace monorepo using TypeScript. Each package manages its own dependenc
 - **API framework**: Express 5
 - **Database**: PostgreSQL + Drizzle ORM
 - **Validation**: Zod (`zod/v4`), `drizzle-zod`
-- **API codegen**: Orval (from OpenAPI spec)
-- **Build**: esbuild (CJS bundle)
+- **API codegen**: Orval (from OpenAPI spec at `lib/api-spec/openapi.yaml`)
+- **Frontend**: React + Vite + TailwindCSS + shadcn/ui
+- **State**: TanStack Query (React Query)
+- **Routing**: Wouter
+- **Auth**: JWT (bcryptjs passwords, jsonwebtoken)
+
+## Artifacts
+
+- **Marketing Naming Platform** (`artifacts/marketing-naming-platform`) — React frontend, served at `/`
+- **API Server** (`artifacts/api-server`) — Express API backend, port 8080
+
+## Key Packages
+
+- `lib/db` — Drizzle ORM schema (teams, users, dimensions, dimension-values, outputs)
+- `lib/api-spec` — OpenAPI 3.0 spec + orval codegen config
+- `lib/api-zod` — Generated Zod validation schemas
+- `lib/api-client-react` — Generated TanStack Query hooks + customFetch with JWT bearer injection
+
+## Auth Flow
+
+- JWT stored in localStorage as `auth_token`
+- `setAuthTokenGetter` registered in `AuthProvider` so all API calls auto-attach `Authorization: Bearer <token>`
+- Protected routes redirect to `/login` when unauthenticated
+
+## API Routes (all under `/api/`)
+
+- `POST /auth/register` — create team + user, returns JWT
+- `POST /auth/login` — returns JWT
+- `GET /auth/me` — current user info
+- `GET/POST /dimensions` — list/create naming dimensions
+- `PUT/DELETE /dimensions/:id` — update/delete dimension
+- `POST /dimensions/:id/duplicate` — duplicate with values
+- `GET/POST /dimensions/:id/values` — list/add values
+- `PUT/DELETE /dimensions/:id/values/:valueId` — update/delete value
+- `GET/POST /outputs` — list/create output format templates
+- `PUT/DELETE /outputs/:id` — update/delete output
+- `POST /generate` — generate names by substituting dimension value short codes into output format tokens
+- `GET /config/export` — export full config as JSON
+- `POST /config/import` — import config from JSON
+- `GET /dashboard/stats` — workspace stats
 
 ## Key Commands
 
