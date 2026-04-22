@@ -1,4 +1,4 @@
-import { Router, type IRouter } from "express";
+import { Router, type IRouter, type Request, type Response } from "express";
 import bcrypt from "bcryptjs";
 import { db, usersTable, teamsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
@@ -7,7 +7,7 @@ import { RegisterBody, LoginBody } from "@workspace/api-zod";
 
 const router: IRouter = Router();
 
-router.post("/auth/register", async (req, res): Promise<void> => {
+async function registerHandler(req: Request, res: Response): Promise<void> {
   const parsed = RegisterBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
@@ -38,9 +38,9 @@ router.post("/auth/register", async (req, res): Promise<void> => {
       teamName: team.name,
     },
   });
-});
+}
 
-router.post("/auth/login", async (req, res): Promise<void> => {
+async function loginHandler(req: Request, res: Response): Promise<void> {
   const parsed = LoginBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
@@ -73,9 +73,14 @@ router.post("/auth/login", async (req, res): Promise<void> => {
       teamName: team.name,
     },
   });
-});
+}
 
-router.get("/auth/me", requireAuth, async (req, res): Promise<void> => {
+router.post("/auth/register", registerHandler);
+router.post("/auth/login", loginHandler);
+router.post("/register", registerHandler);
+router.post("/login", loginHandler);
+
+router.get("/auth/me", requireAuth, async (req: Request, res: Response): Promise<void> => {
   const { userId, teamId, email } = req.user!;
 
   const [team] = await db.select().from(teamsTable).where(eq(teamsTable.id, teamId));
