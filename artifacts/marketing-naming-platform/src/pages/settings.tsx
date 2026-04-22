@@ -1,9 +1,19 @@
 import { useRef, useState } from "react";
-import { useGetMe, useExportConfig, customFetch } from "@workspace/api-client-react";
+import {
+  useGetMe,
+  customFetch,
+  type ErrorType,
+} from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { Download, Upload, Settings2 } from "lucide-react";
+
+function toastError(toast: ReturnType<typeof useToast>["toast"], err: ErrorType<unknown>) {
+  const data = err.data as Record<string, string> | null;
+  const msg = data?.error ?? err.message ?? "Something went wrong";
+  toast({ title: "Error", description: msg, variant: "destructive" });
+}
 
 export default function Settings() {
   const { data: user } = useGetMe();
@@ -24,8 +34,8 @@ export default function Settings() {
       a.click();
       URL.revokeObjectURL(url);
       toast({ title: "Config exported" });
-    } catch (err: any) {
-      toast({ title: "Export failed", description: err?.message, variant: "destructive" });
+    } catch (err) {
+      toastError(toast, err as ErrorType<unknown>);
     } finally {
       setIsExporting(false);
     }
@@ -38,14 +48,14 @@ export default function Settings() {
 
     try {
       const text = await file.text();
-      const json = JSON.parse(text);
+      const json = JSON.parse(text) as Record<string, unknown>;
       await customFetch("/api/config/import", {
         method: "POST",
         body: JSON.stringify(json),
       });
       toast({ title: "Config imported", description: "Refresh the page to see changes." });
-    } catch (err: any) {
-      toast({ title: "Import failed", description: err?.data?.error ?? err?.message, variant: "destructive" });
+    } catch (err) {
+      toastError(toast, err as ErrorType<unknown>);
     } finally {
       setIsImporting(false);
       if (fileRef.current) fileRef.current.value = "";

@@ -1,35 +1,59 @@
-import { useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
 import {
   useListDimensions,
   useListOutputs,
-  getListDimensionsQueryOptions,
+  customFetch,
+  type GeneratedOutput,
+  type ErrorType,
 } from "@workspace/api-client-react";
-import { customFetch } from "@workspace/api-client-react";
+import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Wand2, Copy, RotateCcw, CheckCheck } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useState } from "react";
 
-interface GeneratedOutput {
-  outputId: number;
-  outputName: string;
-  outputCode: string;
-  result: string;
+interface SelectionsMap {
+  [dimId: number]: string;
 }
 
 export default function Generator() {
   const { data: dimensions = [], isLoading: dimsLoading } = useListDimensions();
   const { data: outputs = [] } = useListOutputs();
-  const [selections, setSelections] = useState<Record<string, string>>({});
-  const [results, setResults] = useState<GeneratedOutput[]>([]);
-  const [isGenerating, setIsGenerating] = useState(false);
+  const [selections, setSelections] = useState<SelectionsMap>({});
   const [copiedId, setCopiedId] = useState<number | null>(null);
   const { toast } = useToast();
 
   const enabledDimensions = dimensions.filter((d) => d.enabled);
+  const allSelected = enabledDimensions.length > 0 && enabledDimensions.every((d) => selections[d.id]);
+  const enabledOutputCount = outputs.filter((o) => o.enabled).length;
+
+  const selectionsPayload: Record<string, number> = {};
+  if (allSelected) {
+    for (const [dimId, valId] of Object.entries(selections)) {
+      if (valId) selectionsPayload[dimId] = Number(valId);
+    }
+  }
+
+  const {
+    data: generationResult,
+    isLoading: isGenerating,
+    refetch,
+    isFetched,
+  } = useQuery<{ outputs: GeneratedOutput[] }, ErrorType<unknown>>({
+    queryKey: ["generate", selectionsPayload],
+    queryFn: async () => {
+      return customFetch<{ outputs: GeneratedOutput[] }>("/api/generate", {
+        method: "POST",
+        body: JSON.stringify({ selections: selectionsPayload }),
+      });
+    },
+    enabled: allSelected && enabledOutputCount > 0,
+    staleTime: 0,
+  });
+
+  const results = generationResult?.outputs ?? [];
 
   function setSelection(dimId: number, valueId: string) {
     setSelections((prev) => ({ ...prev, [dimId]: valueId }));
@@ -37,28 +61,6 @@ export default function Generator() {
 
   function clearAll() {
     setSelections({});
-    setResults([]);
-  }
-
-  async function handleGenerate() {
-    setIsGenerating(true);
-    try {
-      const selectionsPayload: Record<string, number> = {};
-      for (const [dimId, valId] of Object.entries(selections)) {
-        if (valId) selectionsPayload[dimId] = Number(valId);
-      }
-
-      const data = await customFetch<{ outputs: GeneratedOutput[] }>("/api/generate", {
-        method: "POST",
-        body: JSON.stringify({ selections: selectionsPayload }),
-      });
-      setResults(data.outputs);
-    } catch (err: any) {
-      const msg = err?.data?.error ?? err?.message ?? "Generation failed";
-      toast({ title: "Error", description: msg, variant: "destructive" });
-    } finally {
-      setIsGenerating(false);
-    }
   }
 
   async function copyToClipboard(result: GeneratedOutput) {
@@ -73,8 +75,6 @@ export default function Generator() {
     toast({ title: "Copied", description: "All outputs copied to clipboard" });
   }
 
-  const allSelected = enabledDimensions.every((d) => selections[d.id]);
-
   if (dimsLoading) {
     return (
       <div className="p-8 flex items-center justify-center">
@@ -87,7 +87,9 @@ export default function Generator() {
     <div className="p-6 max-w-4xl mx-auto">
       <div className="mb-8">
         <h1 className="text-2xl font-bold tracking-tight">Generator</h1>
-        <p className="text-muted-foreground mt-1">Select values for each dimension to generate your naming outputs.</p>
+        <p className="text-muted-foreground mt-1">
+          Select values for each dimension — names generate automatically when all selections are made.
+        </p>
       </div>
 
       {enabledDimensions.length === 0 ? (
@@ -102,12 +104,28 @@ export default function Generator() {
         <div className="space-y-6">
           <Card>
             <CardHeader className="pb-4">
-              <CardTitle className="text-base">Dimension Selections</CardTitle>
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-base">Dimension Selections</CardTitle>
+                <div className="flex items-center gap-2">
+                  {!allSelected && enabledDimensions.length > 0 && (
+                    <span className="text-xs text-muted-foreground">
+                      {enabledDimensions.filter((d) => !selections[d.id]).length} remaining
+                    </span>
+                  )}
+                  {allSelected && isGenerating && (
+                    <span className="text-xs text-primary animate-pulse">Generating…</span>
+                  )}
+                  <Button variant="outline" size="sm" onClick={clearAll} disabled={Object.keys(selections).length === 0}>
+                    <RotateCcw className="h-3.5 w-3.5 mr-1.5" />
+                    Reset
+                  </Button>
+                </div>
+              </div>
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {enabledDimensions.map((dim) => {
-                  const enabledValues = (dim.values ?? []).filter((v: any) => v.enabled);
+                  const enabledValues = dim.values.filter((v) => v.enabled);
                   return (
                     <div key={dim.id} className="space-y-1.5">
                       <div className="flex items-center justify-between">
@@ -123,9 +141,9 @@ export default function Generator() {
                         </SelectTrigger>
                         <SelectContent>
                           {enabledValues.length === 0 ? (
-                            <div className="px-3 py-2 text-sm text-muted-foreground">No values</div>
+                            <div className="px-3 py-2 text-sm text-muted-foreground">No values enabled</div>
                           ) : (
-                            enabledValues.map((val: any) => (
+                            enabledValues.map((val) => (
                               <SelectItem key={val.id} value={String(val.id)}>
                                 <span>{val.label}</span>
                                 <span className="ml-2 font-mono text-xs text-muted-foreground">{val.shortCode}</span>
@@ -138,23 +156,16 @@ export default function Generator() {
                   );
                 })}
               </div>
-
-              <div className="flex items-center gap-3 mt-6 pt-4 border-t">
-                <Button onClick={handleGenerate} disabled={isGenerating} className="flex-1 sm:flex-none">
-                  <Wand2 className="h-4 w-4 mr-2" />
-                  {isGenerating ? "Generating…" : "Generate"}
-                </Button>
-                <Button variant="outline" onClick={clearAll} size="icon" title="Reset">
-                  <RotateCcw className="h-4 w-4" />
-                </Button>
-                {!allSelected && (
-                  <p className="text-xs text-muted-foreground">
-                    {enabledDimensions.filter((d) => !selections[d.id]).length} dimension(s) unselected
-                  </p>
-                )}
-              </div>
             </CardContent>
           </Card>
+
+          {allSelected && enabledOutputCount === 0 && (
+            <Card>
+              <CardContent className="py-8 text-center text-muted-foreground text-sm">
+                No output formats configured. Go to Outputs to add templates.
+              </CardContent>
+            </Card>
+          )}
 
           {results.length > 0 && (
             <Card>

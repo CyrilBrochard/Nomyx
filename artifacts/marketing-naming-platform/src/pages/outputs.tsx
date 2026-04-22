@@ -2,10 +2,13 @@ import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useListOutputs,
+  useListDimensions,
   useCreateOutput,
   useUpdateOutput,
   useDeleteOutput,
   getListOutputsQueryOptions,
+  type Output,
+  type ErrorType,
 } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,7 +18,7 @@ import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Pencil, Trash2, FileOutput, Info } from "lucide-react";
+import { Plus, Pencil, Trash2, FileOutput } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 const SEPARATOR_OPTIONS = [
@@ -25,12 +28,17 @@ const SEPARATOR_OPTIONS = [
   { value: "__none__", label: "None" },
 ];
 
-function toStoredSeparator(v: string) {
+function toStoredSeparator(v: string): string {
   return v === "__none__" ? "" : v;
 }
 
-function toDisplaySeparator(v: string) {
+function toDisplaySeparator(v: string): string {
   return v === "" ? "__none__" : v;
+}
+
+function getSeparatorLabel(stored: string): string {
+  const display = toDisplaySeparator(stored);
+  return (SEPARATOR_OPTIONS.find((s) => s.value === display)?.label ?? stored) || "None";
 }
 
 interface OutputForm {
@@ -43,15 +51,24 @@ interface OutputForm {
 
 const EMPTY_FORM: OutputForm = { name: "", code: "", format: "", separator: "_", enabled: true };
 
+function toastError(toast: ReturnType<typeof useToast>["toast"], err: ErrorType<unknown>) {
+  const data = err.data as Record<string, string> | null;
+  const msg = data?.error ?? err.message ?? "Something went wrong";
+  toast({ title: "Error", description: msg, variant: "destructive" });
+}
+
 export default function Outputs() {
   const { data: outputs = [], isLoading } = useListOutputs();
+  const { data: dimensions = [] } = useListDimensions();
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
-  const [editOutput, setEditOutput] = useState<any | null>(null);
+  const [editOutput, setEditOutput] = useState<Output | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [form, setForm] = useState<OutputForm>(EMPTY_FORM);
-  const [deleteTarget, setDeleteTarget] = useState<any | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Output | null>(null);
+
+  const enabledDimensions = dimensions.filter((d) => d.enabled);
 
   function invalidate() {
     queryClient.invalidateQueries({ queryKey: getListOutputsQueryOptions().queryKey });
@@ -64,9 +81,7 @@ export default function Outputs() {
         setIsDialogOpen(false);
         toast({ title: "Output created" });
       },
-      onError(err: any) {
-        toast({ title: "Error", description: err?.data?.error ?? err?.message, variant: "destructive" });
-      },
+      onError(err) { toastError(toast, err); },
     },
   });
 
@@ -77,9 +92,7 @@ export default function Outputs() {
         setIsDialogOpen(false);
         toast({ title: "Output updated" });
       },
-      onError(err: any) {
-        toast({ title: "Error", description: err?.data?.error ?? err?.message, variant: "destructive" });
-      },
+      onError(err) { toastError(toast, err); },
     },
   });
 
@@ -90,9 +103,7 @@ export default function Outputs() {
         setDeleteTarget(null);
         toast({ title: "Output deleted" });
       },
-      onError(err: any) {
-        toast({ title: "Error", description: err?.data?.error ?? err?.message, variant: "destructive" });
-      },
+      onError(err) { toastError(toast, err); },
     },
   });
 
@@ -102,7 +113,7 @@ export default function Outputs() {
     setIsDialogOpen(true);
   }
 
-  function openEdit(output: any) {
+  function openEdit(output: Output) {
     setEditOutput(output);
     setForm({
       name: output.name,
@@ -123,8 +134,12 @@ export default function Outputs() {
     }
   }
 
-  function toggleEnabled(output: any) {
+  function toggleEnabled(output: Output) {
     updateOutput({ id: output.id, data: { enabled: !output.enabled } });
+  }
+
+  function insertToken(code: string) {
+    setForm((f) => ({ ...f, format: f.format + `[${code}]` }));
   }
 
   return (
@@ -172,7 +187,7 @@ export default function Outputs() {
                     </div>
                     <p className="font-mono text-xs text-muted-foreground truncate">{output.format}</p>
                     <p className="text-xs text-muted-foreground mt-0.5">
-                      Separator: <span className="font-mono">{(SEPARATOR_OPTIONS.find(s => s.value === output.separator)?.label ?? output.separator) || "None"}</span>
+                      Separator: <span className="font-mono">{getSeparatorLabel(output.separator)}</span>
                     </p>
                   </div>
                   <div className="flex items-center gap-1 shrink-0">
@@ -196,7 +211,7 @@ export default function Outputs() {
       )}
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent>
+        <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>{editOutput ? "Edit output" : "Create output"}</DialogTitle>
           </DialogHeader>
@@ -221,19 +236,36 @@ export default function Outputs() {
               </div>
             </div>
             <div className="space-y-2">
-              <div className="flex items-center gap-1.5">
-                <Label>Format</Label>
-                <Info className="h-3.5 w-3.5 text-muted-foreground" title="Use [DIMENSION_CODE] tokens" />
-              </div>
+              <Label>Format template</Label>
               <Input
                 placeholder="[REGION]_[CHANNEL]_[OBJECTIVE]"
                 value={form.format}
                 onChange={(e) => setForm({ ...form, format: e.target.value })}
                 className="font-mono"
               />
-              <p className="text-xs text-muted-foreground">
-                Use <code className="bg-muted px-1 rounded">[DIMENSION_CODE]</code> placeholders — they'll be replaced with selected short codes.
-              </p>
+              {enabledDimensions.length > 0 && (
+                <div className="space-y-1.5">
+                  <p className="text-xs text-muted-foreground">Available tokens — click to insert:</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {enabledDimensions.map((dim) => (
+                      <button
+                        key={dim.id}
+                        type="button"
+                        onClick={() => insertToken(dim.code)}
+                        className="font-mono text-xs bg-muted hover:bg-secondary border rounded px-1.5 py-0.5 transition-colors cursor-pointer"
+                        title={`Insert [${dim.code}]`}
+                      >
+                        [{dim.code}]
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {enabledDimensions.length === 0 && (
+                <p className="text-xs text-muted-foreground">
+                  No enabled dimensions found. Create dimensions first, then use their codes as <code className="bg-muted px-1 rounded">[CODE]</code> tokens.
+                </p>
+              )}
             </div>
             <div className="space-y-2">
               <Label>Separator</Label>

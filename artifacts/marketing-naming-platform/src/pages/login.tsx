@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
-import { useLogin } from "@workspace/api-client-react";
+import { useLogin, type ErrorType } from "@workspace/api-client-react";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,8 +21,9 @@ export default function Login() {
         login(data.token);
         setLocation("/generator");
       },
-      onError(err: any) {
-        const msg = err?.data?.error ?? err?.message ?? "Login failed";
+      onError(err: ErrorType<unknown>) {
+        const data = err.data as Record<string, string> | null;
+        const msg = data?.error ?? err.message ?? "Login failed";
         toast({ title: "Error", description: msg, variant: "destructive" });
       },
     },

@@ -10,6 +10,9 @@ import {
   useUpdateDimensionValue,
   useDeleteDimensionValue,
   getListDimensionsQueryOptions,
+  type DimensionWithValues,
+  type DimensionValue,
+  type ErrorType,
 } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,7 +21,6 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
   Plus,
   Pencil,
@@ -33,17 +35,41 @@ import { useToast } from "@/hooks/use-toast";
 interface DimForm {
   name: string;
   code: string;
+  order: string;
   enabled: boolean;
 }
 
 interface ValForm {
   label: string;
   shortCode: string;
+  order: string;
   enabled: boolean;
 }
 
-const EMPTY_DIM: DimForm = { name: "", code: "", enabled: true };
-const EMPTY_VAL: ValForm = { label: "", shortCode: "", enabled: true };
+const EMPTY_DIM: DimForm = { name: "", code: "", order: "", enabled: true };
+const EMPTY_VAL: ValForm = { label: "", shortCode: "", order: "", enabled: true };
+
+interface DimDialog {
+  open: boolean;
+  editTarget: DimensionWithValues | null;
+}
+
+interface ValDialog {
+  open: boolean;
+  dimensionId: number | null;
+  editTarget: DimensionValue | null;
+}
+
+interface DeleteValTarget {
+  dimension: DimensionWithValues;
+  value: DimensionValue;
+}
+
+function toastError(toast: ReturnType<typeof useToast>["toast"], err: ErrorType<unknown>) {
+  const data = err.data as Record<string, string> | null;
+  const msg = data?.error ?? err.message ?? "Something went wrong";
+  toast({ title: "Error", description: msg, variant: "destructive" });
+}
 
 export default function Dimensions() {
   const queryClient = useQueryClient();
@@ -51,13 +77,13 @@ export default function Dimensions() {
   const { toast } = useToast();
 
   const [expandedIds, setExpandedIds] = useState<Set<number>>(new Set());
-  const [dimDialog, setDimDialog] = useState<{ open: boolean; editTarget: any | null }>({ open: false, editTarget: null });
+  const [dimDialog, setDimDialog] = useState<DimDialog>({ open: false, editTarget: null });
   const [dimForm, setDimForm] = useState<DimForm>(EMPTY_DIM);
-  const [deleteDimTarget, setDeleteDimTarget] = useState<any | null>(null);
+  const [deleteDimTarget, setDeleteDimTarget] = useState<DimensionWithValues | null>(null);
 
-  const [valDialog, setValDialog] = useState<{ open: boolean; dimensionId: number | null; editTarget: any | null }>({ open: false, dimensionId: null, editTarget: null });
+  const [valDialog, setValDialog] = useState<ValDialog>({ open: false, dimensionId: null, editTarget: null });
   const [valForm, setValForm] = useState<ValForm>(EMPTY_VAL);
-  const [deleteValTarget, setDeleteValTarget] = useState<{ dimension: any; value: any } | null>(null);
+  const [deleteValTarget, setDeleteValTarget] = useState<DeleteValTarget | null>(null);
 
   function invalidate() {
     queryClient.invalidateQueries({ queryKey: getListDimensionsQueryOptions().queryKey });
@@ -75,85 +101,99 @@ export default function Dimensions() {
   const { mutate: createDimension, isPending: isCreatingDim } = useCreateDimension({
     mutation: {
       onSuccess() { invalidate(); setDimDialog({ open: false, editTarget: null }); toast({ title: "Dimension created" }); },
-      onError(err: any) { toast({ title: "Error", description: err?.data?.error ?? err?.message, variant: "destructive" }); },
+      onError(err) { toastError(toast, err); },
     },
   });
 
   const { mutate: updateDimension, isPending: isUpdatingDim } = useUpdateDimension({
     mutation: {
       onSuccess() { invalidate(); setDimDialog({ open: false, editTarget: null }); toast({ title: "Dimension updated" }); },
-      onError(err: any) { toast({ title: "Error", description: err?.data?.error ?? err?.message, variant: "destructive" }); },
+      onError(err) { toastError(toast, err); },
     },
   });
 
   const { mutate: deleteDimension } = useDeleteDimension({
     mutation: {
       onSuccess() { invalidate(); setDeleteDimTarget(null); toast({ title: "Dimension deleted" }); },
-      onError(err: any) { toast({ title: "Error", description: err?.data?.error ?? err?.message, variant: "destructive" }); },
+      onError(err) { toastError(toast, err); },
     },
   });
 
   const { mutate: duplicateDimension } = useDuplicateDimension({
     mutation: {
       onSuccess() { invalidate(); toast({ title: "Dimension duplicated" }); },
-      onError(err: any) { toast({ title: "Error", description: err?.data?.error ?? err?.message, variant: "destructive" }); },
+      onError(err) { toastError(toast, err); },
     },
   });
 
   const { mutate: createValue, isPending: isCreatingVal } = useCreateDimensionValue({
     mutation: {
       onSuccess() { invalidate(); setValDialog({ open: false, dimensionId: null, editTarget: null }); toast({ title: "Value added" }); },
-      onError(err: any) { toast({ title: "Error", description: err?.data?.error ?? err?.message, variant: "destructive" }); },
+      onError(err) { toastError(toast, err); },
     },
   });
 
   const { mutate: updateValue, isPending: isUpdatingVal } = useUpdateDimensionValue({
     mutation: {
       onSuccess() { invalidate(); setValDialog({ open: false, dimensionId: null, editTarget: null }); toast({ title: "Value updated" }); },
-      onError(err: any) { toast({ title: "Error", description: err?.data?.error ?? err?.message, variant: "destructive" }); },
+      onError(err) { toastError(toast, err); },
     },
   });
 
   const { mutate: deleteValue } = useDeleteDimensionValue({
     mutation: {
       onSuccess() { invalidate(); setDeleteValTarget(null); toast({ title: "Value deleted" }); },
-      onError(err: any) { toast({ title: "Error", description: err?.data?.error ?? err?.message, variant: "destructive" }); },
+      onError(err) { toastError(toast, err); },
     },
   });
 
   function openCreateDim() {
-    setDimForm(EMPTY_DIM);
+    const maxOrder = dimensions.reduce((max, d) => Math.max(max, d.order), -1);
+    setDimForm({ ...EMPTY_DIM, order: String(maxOrder + 1) });
     setDimDialog({ open: true, editTarget: null });
   }
 
-  function openEditDim(dim: any) {
-    setDimForm({ name: dim.name, code: dim.code, enabled: dim.enabled });
+  function openEditDim(dim: DimensionWithValues) {
+    setDimForm({ name: dim.name, code: dim.code, order: String(dim.order), enabled: dim.enabled });
     setDimDialog({ open: true, editTarget: dim });
   }
 
   function saveDim() {
+    const payload = {
+      name: dimForm.name,
+      code: dimForm.code,
+      enabled: dimForm.enabled,
+      ...(dimForm.order !== "" ? { order: Number(dimForm.order) } : {}),
+    };
     if (dimDialog.editTarget) {
-      updateDimension({ id: dimDialog.editTarget.id, data: dimForm });
+      updateDimension({ id: dimDialog.editTarget.id, data: payload });
     } else {
-      createDimension({ data: dimForm });
+      createDimension({ data: payload });
     }
   }
 
-  function openCreateVal(dimensionId: number) {
-    setValForm(EMPTY_VAL);
+  function openCreateVal(dimensionId: number, existingValues: DimensionValue[]) {
+    const maxOrder = existingValues.reduce((max, v) => Math.max(max, v.order), -1);
+    setValForm({ ...EMPTY_VAL, order: String(maxOrder + 1) });
     setValDialog({ open: true, dimensionId, editTarget: null });
   }
 
-  function openEditVal(dimension: any, value: any) {
-    setValForm({ label: value.label, shortCode: value.shortCode, enabled: value.enabled });
+  function openEditVal(dimension: DimensionWithValues, value: DimensionValue) {
+    setValForm({ label: value.label, shortCode: value.shortCode, order: String(value.order), enabled: value.enabled });
     setValDialog({ open: true, dimensionId: dimension.id, editTarget: value });
   }
 
   function saveVal() {
+    const payload = {
+      label: valForm.label,
+      shortCode: valForm.shortCode,
+      enabled: valForm.enabled,
+      ...(valForm.order !== "" ? { order: Number(valForm.order) } : {}),
+    };
     if (valDialog.editTarget) {
-      updateValue({ id: valDialog.dimensionId!, valueId: valDialog.editTarget.id, data: valForm });
+      updateValue({ id: valDialog.dimensionId!, valueId: valDialog.editTarget.id, data: payload });
     } else {
-      createValue({ id: valDialog.dimensionId!, data: valForm });
+      createValue({ id: valDialog.dimensionId!, data: payload });
     }
   }
 
@@ -186,7 +226,7 @@ export default function Dimensions() {
         <div className="space-y-3">
           {dimensions.map((dim) => {
             const isOpen = expandedIds.has(dim.id);
-            const values = (dim.values ?? []) as any[];
+            const values = dim.values ?? [];
             return (
               <Card key={dim.id} className={dim.enabled ? "" : "opacity-60"}>
                 <CardHeader className="py-3 px-4">
@@ -202,6 +242,7 @@ export default function Dimensions() {
                     >
                       <span className="font-medium text-sm">{dim.name}</span>
                       <Badge variant="outline" className="text-xs font-mono py-0">[{dim.code}]</Badge>
+                      <span className="text-xs text-muted-foreground ml-1">order: {dim.order}</span>
                       <span className="text-xs text-muted-foreground ml-auto mr-2">{values.length} value{values.length !== 1 ? "s" : ""}</span>
                       {isOpen ? <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" /> : <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />}
                     </button>
@@ -230,7 +271,7 @@ export default function Dimensions() {
                       {values.length === 0 ? (
                         <p className="text-xs text-muted-foreground text-center py-2">No values — add some below.</p>
                       ) : (
-                        values.map((val: any) => (
+                        values.map((val) => (
                           <div
                             key={val.id}
                             className={`flex items-center gap-3 rounded-md border bg-secondary/20 px-3 py-2 ${val.enabled ? "" : "opacity-50"}`}
@@ -242,6 +283,7 @@ export default function Dimensions() {
                               className="scale-90"
                             />
                             <span className="text-sm flex-1">{val.label}</span>
+                            <span className="text-xs text-muted-foreground">order: {val.order}</span>
                             <Badge variant="secondary" className="text-xs font-mono">{val.shortCode}</Badge>
                             <div className="flex items-center gap-0.5">
                               <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEditVal(dim, val)}>
@@ -263,7 +305,7 @@ export default function Dimensions() {
                         variant="outline"
                         size="sm"
                         className="w-full mt-2 border-dashed"
-                        onClick={() => openCreateVal(dim.id)}
+                        onClick={() => openCreateVal(dim.id, values)}
                       >
                         <Plus className="h-3.5 w-3.5 mr-1.5" />
                         Add value
@@ -283,24 +325,39 @@ export default function Dimensions() {
             <DialogTitle>{dimDialog.editTarget ? "Edit dimension" : "Create dimension"}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
-            <div className="space-y-2">
-              <Label>Name</Label>
-              <Input
-                placeholder="Region"
-                value={dimForm.name}
-                onChange={(e) => setDimForm({ ...dimForm, name: e.target.value })}
-              />
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Name</Label>
+                <Input
+                  placeholder="Region"
+                  value={dimForm.name}
+                  onChange={(e) => setDimForm({ ...dimForm, name: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Code</Label>
+                <Input
+                  placeholder="REGION"
+                  value={dimForm.code}
+                  onChange={(e) => setDimForm({ ...dimForm, code: e.target.value.toUpperCase().replace(/\s/g, "_") })}
+                  className="font-mono"
+                />
+              </div>
             </div>
             <div className="space-y-2">
-              <Label>Code</Label>
+              <Label>Order</Label>
               <Input
-                placeholder="REGION"
-                value={dimForm.code}
-                onChange={(e) => setDimForm({ ...dimForm, code: e.target.value.toUpperCase().replace(/\s/g, "_") })}
-                className="font-mono"
+                type="number"
+                min={0}
+                placeholder="0"
+                value={dimForm.order}
+                onChange={(e) => setDimForm({ ...dimForm, order: e.target.value })}
               />
-              <p className="text-xs text-muted-foreground">Used in output format templates as <code className="bg-muted px-1 rounded">[{dimForm.code || "CODE"}]</code>.</p>
+              <p className="text-xs text-muted-foreground">Lower numbers appear first in the Generator.</p>
             </div>
+            <p className="text-xs text-muted-foreground">
+              Used in format templates as <code className="bg-muted px-1 rounded">[{dimForm.code || "CODE"}]</code>.
+            </p>
             <div className="flex items-center gap-2">
               <Switch
                 id="dim-enabled"
@@ -328,24 +385,37 @@ export default function Dimensions() {
             <DialogTitle>{valDialog.editTarget ? "Edit value" : "Add value"}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
-            <div className="space-y-2">
-              <Label>Label</Label>
-              <Input
-                placeholder="North America"
-                value={valForm.label}
-                onChange={(e) => setValForm({ ...valForm, label: e.target.value })}
-              />
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Label</Label>
+                <Input
+                  placeholder="North America"
+                  value={valForm.label}
+                  onChange={(e) => setValForm({ ...valForm, label: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Short code</Label>
+                <Input
+                  placeholder="NAM"
+                  value={valForm.shortCode}
+                  onChange={(e) => setValForm({ ...valForm, shortCode: e.target.value.toUpperCase().replace(/\s/g, "") })}
+                  className="font-mono"
+                />
+              </div>
             </div>
             <div className="space-y-2">
-              <Label>Short code</Label>
+              <Label>Order</Label>
               <Input
-                placeholder="NAM"
-                value={valForm.shortCode}
-                onChange={(e) => setValForm({ ...valForm, shortCode: e.target.value.toUpperCase().replace(/\s/g, "") })}
-                className="font-mono"
+                type="number"
+                min={0}
+                placeholder="0"
+                value={valForm.order}
+                onChange={(e) => setValForm({ ...valForm, order: e.target.value })}
               />
-              <p className="text-xs text-muted-foreground">This replaces the dimension token in generated outputs.</p>
+              <p className="text-xs text-muted-foreground">Lower numbers appear first in the Generator dropdown.</p>
             </div>
+            <p className="text-xs text-muted-foreground">The short code replaces the dimension token in generated outputs.</p>
             <div className="flex items-center gap-2">
               <Switch
                 id="val-enabled"

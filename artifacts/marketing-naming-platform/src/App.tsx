@@ -1,3 +1,4 @@
+import React from "react";
 import { Switch, Route, Router as WouterRouter, Redirect, useLocation } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -16,7 +17,7 @@ import Settings from "@/pages/settings";
 
 const queryClient = new QueryClient();
 
-function ProtectedRoute({ component: Component }: { component: any }) {
+function ProtectedRoute({ component: Component }: { component: React.ComponentType }) {
   const { isAuthenticated, isReady } = useAuth();
   
   if (!isReady) return null; // or loading spinner

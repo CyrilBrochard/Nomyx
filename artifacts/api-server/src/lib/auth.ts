@@ -1,7 +1,10 @@
 import jwt from "jsonwebtoken";
 import { Request, Response, NextFunction } from "express";
 
-const JWT_SECRET = process.env.JWT_SECRET ?? "marketing-naming-platform-secret-key-2024";
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  throw new Error("JWT_SECRET environment variable is required but was not set.");
+}
 
 export interface JwtPayload {
   userId: number;
