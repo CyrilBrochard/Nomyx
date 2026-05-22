@@ -24,6 +24,8 @@ tags:
     description: Name generation engine
   - name: config
     description: Config export/import
+  - name: stok
+    description: Saved output batches
 
 paths:
   /healthz:
@@ -969,6 +971,95 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /stok:
+    get:
+      operationId: listStok
+      tags: [stok]
+      summary: List saved output batches for the team
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: q
+          schema:
+            type: string
+          description: Optional search term to filter by name
+      responses:
+        "200":
+          description: List of saved batches
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/StokSave"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    post:
+      operationId: saveStok
+      tags: [stok]
+      summary: Save a batch of generated outputs
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SaveStokBody"
+      responses:
+        "201":
+          description: Saved batch
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StokSave"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /stok/{id}:
+    delete:
+      operationId: deleteStok
+      tags: [stok]
+      summary: Delete a saved batch
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
 components:
   securitySchemes:
     bearerAuth:
@@ -1444,6 +1535,65 @@ components:
       required:
         - importedDimensions
         - importedOutputs
+
+    StokSavedOutput:
+      type: object
+      properties:
+        outputId:
+          type: integer
+        outputName:
+          type: string
+        outputCode:
+          type: string
+        result:
+          type: string
+      required:
+        - outputId
+        - outputName
+        - outputCode
+        - result
+
+    StokSave:
+      type: object
+      properties:
+        id:
+          type: integer
+        teamId:
+          type: integer
+        userId:
+          type: integer
+        name:
+          type: string
+        outputs:
+          type: array
+          items:
+            $ref: "#/components/schemas/StokSavedOutput"
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - teamId
+        - userId
+        - name
+        - outputs
+        - createdAt
+
+    SaveStokBody:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+        outputs:
+          type: array
+          items:
+            $ref: "#/components/schemas/StokSavedOutput"
+          minItems: 1
+      required:
+        - name
+        - outputs
 
     DashboardStats:
       type: object

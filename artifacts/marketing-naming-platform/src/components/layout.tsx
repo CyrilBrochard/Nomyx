@@ -7,10 +7,10 @@ import {
   Layers, 
   FileOutput, 
   Wand2, 
-  Menu,
   User,
   PanelLeftClose,
-  PanelLeftOpen
+  PanelLeftOpen,
+  Archive
 } from "lucide-react";
 import { useState } from "react";
 import { Button } from "./ui/button";
@@ -70,6 +70,12 @@ export function Layout({ children }: { children: React.ReactNode }) {
               href="/outputs" 
               icon={<FileOutput className="h-4 w-4" />} 
               label="Outputs" 
+              isSidebarOpen={isSidebarOpen} 
+            />
+            <NavItem 
+              href="/stok" 
+              icon={<Archive className="h-4 w-4" />} 
+              label="StoK" 
               isSidebarOpen={isSidebarOpen} 
             />
             <NavItem 

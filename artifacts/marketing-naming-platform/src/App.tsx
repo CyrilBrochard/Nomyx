@@ -14,6 +14,7 @@ import Generator from "@/pages/generator";
 import Dimensions from "@/pages/dimensions";
 import Outputs from "@/pages/outputs";
 import Settings from "@/pages/settings";
+import Stok from "@/pages/stok";
 
 const queryClient = new QueryClient();
 
@@ -63,6 +64,9 @@ function Router() {
       </Route>
       <Route path="/settings">
         {() => <ProtectedRoute component={Settings} />}
+      </Route>
+      <Route path="/stok">
+        {() => <ProtectedRoute component={Stok} />}
       </Route>
 
       <Route component={NotFound} />

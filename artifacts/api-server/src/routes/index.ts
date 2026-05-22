@@ -6,6 +6,7 @@ import dimensionsRouter from "./dimensions";
 import outputsRouter from "./outputs";
 import generateRouter from "./generate";
 import configRouter from "./config";
+import stokRouter from "./stok";
 
 const router: IRouter = Router();
 
@@ -16,5 +17,6 @@ router.use(dimensionsRouter);
 router.use(outputsRouter);
 router.use(generateRouter);
 router.use(configRouter);
+router.use(stokRouter);
 
 export default router;

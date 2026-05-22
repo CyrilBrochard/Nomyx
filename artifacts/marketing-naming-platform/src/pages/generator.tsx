@@ -1,18 +1,20 @@
 import {
   useListDimensions,
   useListOutputs,
+  useSaveStok,
   customFetch,
   type GeneratedOutput,
   type ErrorType,
 } from "@workspace/api-client-react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Wand2, Copy, RotateCcw, CheckCheck } from "lucide-react";
+import { Wand2, Copy, RotateCcw, CheckCheck, Archive } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useState } from "react";
+import { useLocation } from "wouter";
 
 interface SelectionsMap {
   [dimId: number]: string;
@@ -23,7 +25,10 @@ export default function Generator() {
   const { data: outputs = [] } = useListOutputs();
   const [selections, setSelections] = useState<SelectionsMap>({});
   const [copiedId, setCopiedId] = useState<number | null>(null);
+  const [isSaved, setIsSaved] = useState(false);
   const { toast } = useToast();
+  const [, setLocation] = useLocation();
+  const queryClient = useQueryClient();
 
   const enabledDimensions = dimensions.filter((d) => d.enabled);
   const allSelected = enabledDimensions.length > 0 && enabledDimensions.every((d) => selections[d.id]);
@@ -39,8 +44,6 @@ export default function Generator() {
   const {
     data: generationResult,
     isLoading: isGenerating,
-    refetch,
-    isFetched,
   } = useQuery<{ outputs: GeneratedOutput[] }, ErrorType<unknown>>({
     queryKey: ["generate", selectionsPayload],
     queryFn: async () => {
@@ -55,12 +58,51 @@ export default function Generator() {
 
   const results = generationResult?.outputs ?? [];
 
+  const { mutate: saveStok, isPending: isSaving } = useSaveStok({
+    mutation: {
+      onSuccess() {
+        queryClient.invalidateQueries({ queryKey: ["listStok"] });
+        setIsSaved(true);
+        setTimeout(() => setIsSaved(false), 3000);
+        toast({
+          title: "Enregistré dans StoK",
+          description: "Vos outputs ont été sauvegardés.",
+        });
+      },
+      onError(err: ErrorType<unknown>) {
+        const msg = (err.data as Record<string, string> | null)?.error ?? "Erreur lors de la sauvegarde";
+        toast({ title: "Erreur", description: msg, variant: "destructive" });
+      },
+    },
+  });
+
+  function buildSaveName(): string {
+    const parts = enabledDimensions.map((dim) => {
+      const valId = selections[dim.id];
+      const val = dim.values.find((v) => String(v.id) === valId);
+      return val ? val.shortCode : dim.code;
+    });
+    return parts.join(" · ");
+  }
+
+  function handleSaveToStok() {
+    if (results.length === 0) return;
+    saveStok({
+      data: {
+        name: buildSaveName(),
+        outputs: results,
+      },
+    });
+  }
+
   function setSelection(dimId: number, valueId: string) {
     setSelections((prev) => ({ ...prev, [dimId]: valueId }));
+    setIsSaved(false);
   }
 
   function clearAll() {
     setSelections({});
+    setIsSaved(false);
   }
 
   async function copyToClipboard(result: GeneratedOutput) {
@@ -72,7 +114,7 @@ export default function Generator() {
   async function copyAll() {
     const text = results.map((r) => `${r.outputCode}: ${r.result}`).join("\n");
     await navigator.clipboard.writeText(text);
-    toast({ title: "Copied", description: "All outputs copied to clipboard" });
+    toast({ title: "Copié", description: "Tous les outputs copiés dans le presse-papier." });
   }
 
   if (dimsLoading) {
@@ -172,10 +214,30 @@ export default function Generator() {
               <CardHeader className="pb-4">
                 <div className="flex items-center justify-between">
                   <CardTitle className="text-base">Generated Outputs</CardTitle>
-                  <Button variant="outline" size="sm" onClick={copyAll}>
-                    <Copy className="h-3.5 w-3.5 mr-1.5" />
-                    Copy all
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    <Button variant="outline" size="sm" onClick={copyAll}>
+                      <Copy className="h-3.5 w-3.5 mr-1.5" />
+                      Copy all
+                    </Button>
+                    <Button
+                      variant={isSaved ? "outline" : "default"}
+                      size="sm"
+                      onClick={isSaved ? () => setLocation("/stok") : handleSaveToStok}
+                      disabled={isSaving}
+                    >
+                      {isSaved ? (
+                        <>
+                          <CheckCheck className="h-3.5 w-3.5 mr-1.5 text-green-500" />
+                          Voir dans StoK
+                        </>
+                      ) : (
+                        <>
+                          <Archive className="h-3.5 w-3.5 mr-1.5" />
+                          {isSaving ? "Enregistrement…" : "Enregistrer dans StoK"}
+                        </>
+                      )}
+                    </Button>
+                  </div>
                 </div>
               </CardHeader>
               <CardContent className="space-y-3">
