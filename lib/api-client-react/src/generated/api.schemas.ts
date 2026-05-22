@@ -45,10 +45,6 @@ export interface TeamMember {
   createdAt: string;
 }
 
-export interface TransferOwnershipBody {
-  role: "owner";
-}
-
 export interface InviteResponse {
   inviteUrl: string;
   token: string;
@@ -176,6 +172,17 @@ export interface GeneratedOutput {
 
 export interface GenerateResponse {
   outputs: GeneratedOutput[];
+}
+
+export type TransferOwnershipBodyRole =
+  (typeof TransferOwnershipBodyRole)[keyof typeof TransferOwnershipBodyRole];
+
+export const TransferOwnershipBodyRole = {
+  owner: "owner",
+} as const;
+
+export interface TransferOwnershipBody {
+  role: TransferOwnershipBodyRole;
 }
 
 export type TeamConfigDimensionsItemValuesItem = {

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useListDimensions,
@@ -10,6 +10,7 @@ import {
   useUpdateDimensionValue,
   useDeleteDimensionValue,
   useReorderDimensions,
+  useReorderDimensionValues,
   getListDimensionsQueryOptions,
   type DimensionWithValues,
   type DimensionValue,
@@ -88,6 +89,64 @@ function toastError(toast: ReturnType<typeof useToast>["toast"], err: ErrorType<
   toast({ title: "Error", description: msg, variant: "destructive" });
 }
 
+interface SortableValueRowProps {
+  val: DimensionValue;
+  onEdit: () => void;
+  onDelete: () => void;
+  onToggleEnabled: () => void;
+}
+
+function SortableValueRow({ val, onEdit, onDelete, onToggleEnabled }: SortableValueRowProps) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: val.id,
+  });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.4 : val.enabled ? 1 : 0.5,
+    zIndex: isDragging ? 10 : undefined,
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className="flex items-center gap-3 rounded-md border bg-secondary/20 px-3 py-2"
+    >
+      <button
+        className="cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground touch-none shrink-0"
+        {...attributes}
+        {...listeners}
+        aria-label="Drag to reorder value"
+      >
+        <GripVertical className="h-3.5 w-3.5" />
+      </button>
+      <Switch
+        checked={val.enabled}
+        onCheckedChange={onToggleEnabled}
+        aria-label="Toggle value"
+        className="scale-90"
+      />
+      <span className="text-sm flex-1">{val.label}</span>
+      <Badge variant="secondary" className="text-xs font-mono">{val.shortCode}</Badge>
+      <div className="flex items-center gap-0.5">
+        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onEdit}>
+          <Pencil className="h-3 w-3" />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-7 w-7 text-muted-foreground hover:text-destructive"
+          onClick={onDelete}
+        >
+          <Trash2 className="h-3 w-3" />
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 interface SortableDimCardProps {
   dim: DimensionWithValues;
   isOpen: boolean;
@@ -100,6 +159,7 @@ interface SortableDimCardProps {
   onEditVal: (val: DimensionValue) => void;
   onDeleteVal: (val: DimensionValue) => void;
   onToggleValEnabled: (val: DimensionValue) => void;
+  onReorderValues: (orderedIds: number[]) => void;
 }
 
 function SortableDimCard({
@@ -114,6 +174,7 @@ function SortableDimCard({
   onEditVal,
   onDeleteVal,
   onToggleValEnabled,
+  onReorderValues,
 }: SortableDimCardProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: dim.id,
@@ -126,7 +187,31 @@ function SortableDimCard({
     zIndex: isDragging ? 10 : undefined,
   };
 
-  const values = dim.values ?? [];
+  const serverValues = dim.values ?? [];
+  const [localValueOrder, setLocalValueOrder] = useState<number[] | null>(null);
+
+  useEffect(() => {
+    setLocalValueOrder(null);
+  }, [serverValues]);
+
+  const valueMap = new Map(serverValues.map((v) => [v.id, v]));
+  const orderedValueIds = localValueOrder ?? serverValues.map((v) => v.id);
+  const values = orderedValueIds.map((id) => valueMap.get(id)).filter(Boolean) as DimensionValue[];
+
+  const valueSensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
+  );
+
+  function handleValueDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+
+    const oldIndex = orderedValueIds.indexOf(active.id as number);
+    const newIndex = orderedValueIds.indexOf(over.id as number);
+    const newOrder = arrayMove(orderedValueIds, oldIndex, newIndex);
+    setLocalValueOrder(newOrder);
+    onReorderValues(newOrder);
+  }
 
   return (
     <div ref={setNodeRef} style={style}>
@@ -180,34 +265,25 @@ function SortableDimCard({
               {values.length === 0 ? (
                 <p className="text-xs text-muted-foreground text-center py-2">No values — add some below.</p>
               ) : (
-                values.map((val) => (
-                  <div
-                    key={val.id}
-                    className={`flex items-center gap-3 rounded-md border bg-secondary/20 px-3 py-2 ${val.enabled ? "" : "opacity-50"}`}
-                  >
-                    <Switch
-                      checked={val.enabled}
-                      onCheckedChange={() => onToggleValEnabled(val)}
-                      aria-label="Toggle value"
-                      className="scale-90"
-                    />
-                    <span className="text-sm flex-1">{val.label}</span>
-                    <Badge variant="secondary" className="text-xs font-mono">{val.shortCode}</Badge>
-                    <div className="flex items-center gap-0.5">
-                      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onEditVal(val)}>
-                        <Pencil className="h-3 w-3" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7 text-muted-foreground hover:text-destructive"
-                        onClick={() => onDeleteVal(val)}
-                      >
-                        <Trash2 className="h-3 w-3" />
-                      </Button>
+                <DndContext
+                  sensors={valueSensors}
+                  collisionDetection={closestCenter}
+                  onDragEnd={handleValueDragEnd}
+                >
+                  <SortableContext items={orderedValueIds} strategy={verticalListSortingStrategy}>
+                    <div className="space-y-2">
+                      {values.map((val) => (
+                        <SortableValueRow
+                          key={val.id}
+                          val={val}
+                          onEdit={() => onEditVal(val)}
+                          onDelete={() => onDeleteVal(val)}
+                          onToggleEnabled={() => onToggleValEnabled(val)}
+                        />
+                      ))}
                     </div>
-                  </div>
-                ))
+                  </SortableContext>
+                </DndContext>
               )}
               <Button
                 variant="outline"
@@ -294,6 +370,13 @@ export default function Dimensions() {
         toastError(toast, err);
         setLocalOrder(null);
       },
+    },
+  });
+
+  const { mutate: reorderValues } = useReorderDimensionValues({
+    mutation: {
+      onSuccess() { invalidate(); },
+      onError(err) { toastError(toast, err); },
     },
   });
 
@@ -426,6 +509,7 @@ export default function Dimensions() {
                   onEditVal={(val) => openEditVal(dim, val)}
                   onDeleteVal={(val) => setDeleteValTarget({ dimension: dim, value: val })}
                   onToggleValEnabled={(val) => updateValue({ id: dim.id, valueId: val.id, data: { enabled: !val.enabled } })}
+                  onReorderValues={(orderedIds) => reorderValues({ id: dim.id, data: { orderedIds } })}
                 />
               ))}
             </div>

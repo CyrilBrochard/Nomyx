@@ -634,6 +634,47 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /dimensions/{id}/values/reorder:
+    patch:
+      operationId: reorderDimensionValues
+      tags: [dimension-values]
+      summary: Batch update dimension value order
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReorderBody"
+      responses:
+        "204":
+          description: Order updated
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Dimension not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /dimensions/reorder:
     patch:
       operationId: reorderDimensions

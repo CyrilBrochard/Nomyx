@@ -443,6 +443,93 @@ export function useListTeamMembers<
 }
 
 /**
+ * @summary Transfer team ownership to another member (owner only)
+ */
+export const getTransferOwnershipUrl = (id: number) => {
+  return `/api/team/members/${id}/role`;
+};
+
+export const transferOwnership = async (
+  id: number,
+  transferOwnershipBody: TransferOwnershipBody,
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(getTransferOwnershipUrl(id), {
+    ...options,
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(transferOwnershipBody),
+  });
+};
+
+export const getTransferOwnershipMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof transferOwnership>>,
+    TError,
+    { id: number; data: BodyType<TransferOwnershipBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof transferOwnership>>,
+  TError,
+  { id: number; data: BodyType<TransferOwnershipBody> },
+  TContext
+> => {
+  const mutationKey = ["transferOwnership"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof transferOwnership>>,
+    { id: number; data: BodyType<TransferOwnershipBody> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return transferOwnership(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type TransferOwnershipMutationResult = NonNullable<
+  Awaited<ReturnType<typeof transferOwnership>>
+>;
+export type TransferOwnershipMutationBody = BodyType<TransferOwnershipBody>;
+export type TransferOwnershipMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Transfer team ownership to another member (owner only)
+ */
+export const useTransferOwnership = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof transferOwnership>>,
+    TError,
+    { id: number; data: BodyType<TransferOwnershipBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof transferOwnership>>,
+  TError,
+  { id: number; data: BodyType<TransferOwnershipBody> },
+  TContext
+> => {
+  return useMutation(getTransferOwnershipMutationOptions(options));
+};
+
+/**
  * @summary Remove a member from the current team (owner only)
  */
 export const getRemoveTeamMemberUrl = (id: number) => {
@@ -524,92 +611,6 @@ export const useRemoveTeamMember = <
   TContext
 > => {
   return useMutation(getRemoveTeamMemberMutationOptions(options));
-};
-
-/**
- * @summary Transfer team ownership to another member (owner only)
- */
-export const getTransferOwnershipUrl = (id: number) => {
-  return `/api/team/members/${id}/role`;
-};
-
-export const transferOwnership = async (
-  id: number,
-  transferOwnershipBody: TransferOwnershipBody,
-  options?: RequestInit,
-): Promise<void> => {
-  return customFetch<void>(getTransferOwnershipUrl(id), {
-    ...options,
-    method: "PATCH",
-    headers: { "Content-Type": "application/json", ...options?.headers },
-    body: JSON.stringify(transferOwnershipBody),
-  });
-};
-
-export const getTransferOwnershipMutationOptions = <
-  TError = ErrorType<ErrorResponse>,
-  TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof transferOwnership>>,
-    TError,
-    { id: number; data: TransferOwnershipBody },
-    TContext
-  >;
-  request?: SecondParameter<typeof customFetch>;
-}): UseMutationOptions<
-  Awaited<ReturnType<typeof transferOwnership>>,
-  TError,
-  { id: number; data: TransferOwnershipBody },
-  TContext
-> => {
-  const mutationKey = ["transferOwnership"];
-  const { mutation: mutationOptions, request: requestOptions } = options
-    ? options.mutation &&
-      "mutationKey" in options.mutation &&
-      options.mutation.mutationKey
-      ? options
-      : { ...options, mutation: { ...options.mutation, mutationKey } }
-    : { mutation: { mutationKey }, request: undefined };
-
-  const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof transferOwnership>>,
-    { id: number; data: TransferOwnershipBody }
-  > = (props) => {
-    const { id, data } = props ?? {};
-    return transferOwnership(id, data, requestOptions);
-  };
-
-  return { mutationFn, ...mutationOptions };
-};
-
-export type TransferOwnershipMutationResult = NonNullable<
-  Awaited<ReturnType<typeof transferOwnership>>
->;
-
-export type TransferOwnershipMutationError = ErrorType<ErrorResponse>;
-
-/**
- * @summary Transfer team ownership to another member (owner only)
- */
-export const useTransferOwnership = <
-  TError = ErrorType<ErrorResponse>,
-  TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof transferOwnership>>,
-    TError,
-    { id: number; data: TransferOwnershipBody },
-    TContext
-  >;
-  request?: SecondParameter<typeof customFetch>;
-}): UseMutationResult<
-  Awaited<ReturnType<typeof transferOwnership>>,
-  TError,
-  { id: number; data: TransferOwnershipBody },
-  TContext
-> => {
-  return useMutation(getTransferOwnershipMutationOptions(options));
 };
 
 /**
@@ -1639,6 +1640,93 @@ export const useDeleteDimensionValue = <
   TContext
 > => {
   return useMutation(getDeleteDimensionValueMutationOptions(options));
+};
+
+/**
+ * @summary Batch update dimension value order
+ */
+export const getReorderDimensionValuesUrl = (id: number) => {
+  return `/api/dimensions/${id}/values/reorder`;
+};
+
+export const reorderDimensionValues = async (
+  id: number,
+  reorderBody: ReorderBody,
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(getReorderDimensionValuesUrl(id), {
+    ...options,
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(reorderBody),
+  });
+};
+
+export const getReorderDimensionValuesMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof reorderDimensionValues>>,
+    TError,
+    { id: number; data: BodyType<ReorderBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof reorderDimensionValues>>,
+  TError,
+  { id: number; data: BodyType<ReorderBody> },
+  TContext
+> => {
+  const mutationKey = ["reorderDimensionValues"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof reorderDimensionValues>>,
+    { id: number; data: BodyType<ReorderBody> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return reorderDimensionValues(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ReorderDimensionValuesMutationResult = NonNullable<
+  Awaited<ReturnType<typeof reorderDimensionValues>>
+>;
+export type ReorderDimensionValuesMutationBody = BodyType<ReorderBody>;
+export type ReorderDimensionValuesMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Batch update dimension value order
+ */
+export const useReorderDimensionValues = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof reorderDimensionValues>>,
+    TError,
+    { id: number; data: BodyType<ReorderBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof reorderDimensionValues>>,
+  TError,
+  { id: number; data: BodyType<ReorderBody> },
+  TContext
+> => {
+  return useMutation(getReorderDimensionValuesMutationOptions(options));
 };
 
 /**

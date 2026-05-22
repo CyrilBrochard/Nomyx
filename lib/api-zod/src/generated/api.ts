@@ -68,6 +68,17 @@ export const ListTeamMembersResponseItem = zod.object({
 export const ListTeamMembersResponse = zod.array(ListTeamMembersResponseItem);
 
 /**
+ * @summary Transfer team ownership to another member (owner only)
+ */
+export const TransferOwnershipParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const TransferOwnershipBody = zod.object({
+  role: zod.enum(["owner"]),
+});
+
+/**
  * @summary Remove a member from the current team (owner only)
  */
 export const RemoveTeamMemberParams = zod.object({
@@ -245,6 +256,19 @@ export const UpdateDimensionValueResponse = zod.object({
 export const DeleteDimensionValueParams = zod.object({
   id: zod.coerce.number(),
   valueId: zod.coerce.number(),
+});
+
+/**
+ * @summary Batch update dimension value order
+ */
+export const ReorderDimensionValuesParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const ReorderDimensionValuesBody = zod.object({
+  orderedIds: zod
+    .array(zod.number())
+    .describe("Array of IDs in the new desired order"),
 });
 
 /**

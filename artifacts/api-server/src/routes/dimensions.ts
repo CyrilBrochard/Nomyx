@@ -15,6 +15,8 @@ import {
   DeleteDimensionValueParams,
   ListDimensionValuesParams,
   ReorderDimensionsBody,
+  ReorderDimensionValuesParams,
+  ReorderDimensionValuesBody,
 } from "@workspace/api-zod";
 
 const router: IRouter = Router();
@@ -213,6 +215,63 @@ router.post("/dimensions/:id/duplicate", requireAuth, async (req, res): Promise<
     : [];
 
   res.status(201).json({ ...newDim, values: newValues });
+});
+
+router.patch("/dimensions/:id/values/reorder", requireAuth, async (req, res): Promise<void> => {
+  const teamId = req.user!.teamId;
+  const params = ReorderDimensionValuesParams.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: params.error.message });
+    return;
+  }
+
+  const [dim] = await db
+    .select()
+    .from(dimensionsTable)
+    .where(and(eq(dimensionsTable.id, params.data.id), eq(dimensionsTable.teamId, teamId)));
+
+  if (!dim) {
+    res.status(404).json({ error: "Dimension not found" });
+    return;
+  }
+
+  const parsed = ReorderDimensionValuesBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+
+  const { orderedIds } = parsed.data;
+
+  const existing = await db
+    .select({ id: dimensionValuesTable.id })
+    .from(dimensionValuesTable)
+    .where(eq(dimensionValuesTable.dimensionId, params.data.id));
+
+  const existingIdSet = new Set(existing.map((v) => v.id));
+  const hasDuplicates = new Set(orderedIds).size !== orderedIds.length;
+  const mismatch =
+    hasDuplicates ||
+    orderedIds.length !== existingIdSet.size ||
+    orderedIds.some((id) => !existingIdSet.has(id));
+
+  if (mismatch) {
+    res.status(400).json({ error: "orderedIds must be an exact set of the dimension's value IDs" });
+    return;
+  }
+
+  await db.transaction(async (tx) => {
+    await Promise.all(
+      orderedIds.map((id, index) =>
+        tx
+          .update(dimensionValuesTable)
+          .set({ order: index })
+          .where(and(eq(dimensionValuesTable.id, id), eq(dimensionValuesTable.dimensionId, params.data.id)))
+      )
+    );
+  });
+
+  res.sendStatus(204);
 });
 
 router.get("/dimensions/:id/values", requireAuth, async (req, res): Promise<void> => {
