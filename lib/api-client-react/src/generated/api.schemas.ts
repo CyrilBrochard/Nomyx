@@ -112,6 +112,11 @@ export interface UpdateDimensionValueBody {
   enabled?: boolean;
 }
 
+export interface ReorderBody {
+  /** Array of IDs in the new desired order */
+  orderedIds: number[];
+}
+
 export interface Output {
   id: number;
   teamId: number;
@@ -121,6 +126,7 @@ export interface Output {
   format: string;
   /** Separator between tokens: underscore, dash, or space */
   separator: string;
+  order: number;
   enabled: boolean;
   createdAt: string;
   updatedAt: string;

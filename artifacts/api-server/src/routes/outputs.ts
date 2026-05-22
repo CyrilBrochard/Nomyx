@@ -7,9 +7,51 @@ import {
   UpdateOutputBody,
   UpdateOutputParams,
   DeleteOutputParams,
+  ReorderOutputsBody,
 } from "@workspace/api-zod";
 
 const router: IRouter = Router();
+
+router.patch("/outputs/reorder", requireAuth, async (req, res): Promise<void> => {
+  const teamId = req.user!.teamId;
+  const parsed = ReorderOutputsBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+
+  const { orderedIds } = parsed.data;
+
+  const existing = await db
+    .select({ id: outputsTable.id })
+    .from(outputsTable)
+    .where(eq(outputsTable.teamId, teamId));
+
+  const existingIdSet = new Set(existing.map((o) => o.id));
+  const hasDuplicates = new Set(orderedIds).size !== orderedIds.length;
+  const mismatch =
+    hasDuplicates ||
+    orderedIds.length !== existingIdSet.size ||
+    orderedIds.some((id) => !existingIdSet.has(id));
+
+  if (mismatch) {
+    res.status(400).json({ error: "orderedIds must be an exact set of the team's output IDs" });
+    return;
+  }
+
+  await db.transaction(async (tx) => {
+    await Promise.all(
+      orderedIds.map((id, index) =>
+        tx
+          .update(outputsTable)
+          .set({ order: index })
+          .where(and(eq(outputsTable.id, id), eq(outputsTable.teamId, teamId)))
+      )
+    );
+  });
+
+  res.sendStatus(204);
+});
 
 router.get("/outputs", requireAuth, async (req, res): Promise<void> => {
   const teamId = req.user!.teamId;
@@ -17,7 +59,7 @@ router.get("/outputs", requireAuth, async (req, res): Promise<void> => {
     .select()
     .from(outputsTable)
     .where(eq(outputsTable.teamId, teamId))
-    .orderBy(asc(outputsTable.id));
+    .orderBy(asc(outputsTable.order), asc(outputsTable.id));
 
   res.json(outputs);
 });
@@ -30,6 +72,9 @@ router.post("/outputs", requireAuth, async (req, res): Promise<void> => {
     return;
   }
 
+  const existing = await db.select().from(outputsTable).where(eq(outputsTable.teamId, teamId));
+  const maxOrder = existing.reduce((max, o) => Math.max(max, o.order), -1);
+
   const [output] = await db
     .insert(outputsTable)
     .values({
@@ -38,6 +83,7 @@ router.post("/outputs", requireAuth, async (req, res): Promise<void> => {
       code: parsed.data.code,
       format: parsed.data.format,
       separator: parsed.data.separator,
+      order: maxOrder + 1,
       enabled: parsed.data.enabled ?? true,
     })
     .returning();

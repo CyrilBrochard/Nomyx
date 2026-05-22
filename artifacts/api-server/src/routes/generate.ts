@@ -88,7 +88,7 @@ router.post("/generate", requireAuth, async (req, res): Promise<void> => {
     .select()
     .from(outputsTable)
     .where(and(eq(outputsTable.teamId, teamId), eq(outputsTable.enabled, true)))
-    .orderBy(asc(outputsTable.id));
+    .orderBy(asc(outputsTable.order), asc(outputsTable.id));
 
   const results = outputs.map((output) => {
     const result = generateFromFormat(output.format, codeToValue, output.separator);

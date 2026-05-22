@@ -6,19 +6,35 @@ import {
   useCreateOutput,
   useUpdateOutput,
   useDeleteOutput,
+  useReorderOutputs,
   getListOutputsQueryOptions,
   type Output,
   type ErrorType,
 } from "@workspace/api-client-react";
+import {
+  DndContext,
+  closestCenter,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  verticalListSortingStrategy,
+  useSortable,
+  arrayMove,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Pencil, Trash2, FileOutput } from "lucide-react";
+import { Plus, Pencil, Trash2, FileOutput, GripVertical } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 const SEPARATOR_OPTIONS = [
@@ -57,12 +73,80 @@ function toastError(toast: ReturnType<typeof useToast>["toast"], err: ErrorType<
   toast({ title: "Error", description: msg, variant: "destructive" });
 }
 
+interface SortableOutputCardProps {
+  output: Output;
+  onEdit: () => void;
+  onDelete: () => void;
+  onToggleEnabled: () => void;
+}
+
+function SortableOutputCard({ output, onEdit, onDelete, onToggleEnabled }: SortableOutputCardProps) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: output.id,
+  });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+    zIndex: isDragging ? 10 : undefined,
+  };
+
+  return (
+    <div ref={setNodeRef} style={style}>
+      <Card className={output.enabled ? "" : "opacity-60"}>
+        <CardContent className="py-4 px-5">
+          <div className="flex items-center gap-4">
+            <button
+              className="cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground touch-none shrink-0"
+              {...attributes}
+              {...listeners}
+              aria-label="Drag to reorder"
+            >
+              <GripVertical className="h-4 w-4" />
+            </button>
+            <Switch
+              checked={output.enabled}
+              onCheckedChange={onToggleEnabled}
+              aria-label="Toggle enabled"
+            />
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 mb-0.5">
+                <span className="font-medium text-sm">{output.name}</span>
+                <Badge variant="outline" className="text-xs font-mono py-0">{output.code}</Badge>
+              </div>
+              <p className="font-mono text-xs text-muted-foreground truncate">{output.format}</p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Separator: <span className="font-mono">{getSeparatorLabel(output.separator)}</span>
+              </p>
+            </div>
+            <div className="flex items-center gap-1 shrink-0">
+              <Button variant="ghost" size="icon" onClick={onEdit}>
+                <Pencil className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="text-muted-foreground hover:text-destructive"
+                onClick={onDelete}
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
 export default function Outputs() {
-  const { data: outputs = [], isLoading } = useListOutputs();
+  const { data: serverOutputs = [], isLoading } = useListOutputs();
   const { data: dimensions = [] } = useListDimensions();
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
+  const [localOrder, setLocalOrder] = useState<number[] | null>(null);
   const [editOutput, setEditOutput] = useState<Output | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [form, setForm] = useState<OutputForm>(EMPTY_FORM);
@@ -70,8 +154,13 @@ export default function Outputs() {
 
   const enabledDimensions = dimensions.filter((d) => d.enabled);
 
+  const outputMap = new Map(serverOutputs.map((o) => [o.id, o]));
+  const orderedIds = localOrder ?? serverOutputs.map((o) => o.id);
+  const outputs = orderedIds.map((id) => outputMap.get(id)).filter(Boolean) as Output[];
+
   function invalidate() {
     queryClient.invalidateQueries({ queryKey: getListOutputsQueryOptions().queryKey });
+    setLocalOrder(null);
   }
 
   const { mutate: createOutput, isPending: isCreating } = useCreateOutput({
@@ -107,6 +196,31 @@ export default function Outputs() {
     },
   });
 
+  const { mutate: reorderOutputs } = useReorderOutputs({
+    mutation: {
+      onSuccess() { invalidate(); },
+      onError(err) {
+        toastError(toast, err);
+        setLocalOrder(null);
+      },
+    },
+  });
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
+  );
+
+  function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+
+    const oldIndex = orderedIds.indexOf(active.id as number);
+    const newIndex = orderedIds.indexOf(over.id as number);
+    const newOrder = arrayMove(orderedIds, oldIndex, newIndex);
+    setLocalOrder(newOrder);
+    reorderOutputs({ data: { orderedIds: newOrder } });
+  }
+
   function openCreate() {
     setEditOutput(null);
     setForm(EMPTY_FORM);
@@ -132,10 +246,6 @@ export default function Outputs() {
     } else {
       createOutput({ data: payload });
     }
-  }
-
-  function toggleEnabled(output: Output) {
-    updateOutput({ id: output.id, data: { enabled: !output.enabled } });
   }
 
   function insertToken(code: string) {
@@ -170,44 +280,21 @@ export default function Outputs() {
           </CardContent>
         </Card>
       ) : (
-        <div className="space-y-3">
-          {outputs.map((output) => (
-            <Card key={output.id} className={output.enabled ? "" : "opacity-60"}>
-              <CardContent className="py-4 px-5">
-                <div className="flex items-center gap-4">
-                  <Switch
-                    checked={output.enabled}
-                    onCheckedChange={() => toggleEnabled(output)}
-                    aria-label="Toggle enabled"
-                  />
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-0.5">
-                      <span className="font-medium text-sm">{output.name}</span>
-                      <Badge variant="outline" className="text-xs font-mono py-0">{output.code}</Badge>
-                    </div>
-                    <p className="font-mono text-xs text-muted-foreground truncate">{output.format}</p>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      Separator: <span className="font-mono">{getSeparatorLabel(output.separator)}</span>
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-1 shrink-0">
-                    <Button variant="ghost" size="icon" onClick={() => openEdit(output)}>
-                      <Pencil className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="text-muted-foreground hover:text-destructive"
-                      onClick={() => setDeleteTarget(output)}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+          <SortableContext items={orderedIds} strategy={verticalListSortingStrategy}>
+            <div className="space-y-3">
+              {outputs.map((output) => (
+                <SortableOutputCard
+                  key={output.id}
+                  output={output}
+                  onEdit={() => openEdit(output)}
+                  onDelete={() => setDeleteTarget(output)}
+                  onToggleEnabled={() => updateOutput({ id: output.id, data: { enabled: !output.enabled } })}
+                />
+              ))}
+            </div>
+          </SortableContext>
+        </DndContext>
       )}
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>

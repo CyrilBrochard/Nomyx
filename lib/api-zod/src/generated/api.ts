@@ -229,6 +229,24 @@ export const DeleteDimensionValueParams = zod.object({
 });
 
 /**
+ * @summary Batch update dimension order
+ */
+export const ReorderDimensionsBody = zod.object({
+  orderedIds: zod
+    .array(zod.number())
+    .describe("Array of IDs in the new desired order"),
+});
+
+/**
+ * @summary Batch update output order
+ */
+export const ReorderOutputsBody = zod.object({
+  orderedIds: zod
+    .array(zod.number())
+    .describe("Array of IDs in the new desired order"),
+});
+
+/**
  * @summary List all output formats for the current team
  */
 export const ListOutputsResponseItem = zod.object({
@@ -242,6 +260,7 @@ export const ListOutputsResponseItem = zod.object({
   separator: zod
     .string()
     .describe("Separator between tokens: underscore, dash, or space"),
+  order: zod.number(),
   enabled: zod.boolean(),
   createdAt: zod.coerce.date(),
   updatedAt: zod.coerce.date(),
@@ -285,6 +304,7 @@ export const UpdateOutputResponse = zod.object({
   separator: zod
     .string()
     .describe("Separator between tokens: underscore, dash, or space"),
+  order: zod.number(),
   enabled: zod.boolean(),
   createdAt: zod.coerce.date(),
   updatedAt: zod.coerce.date(),

@@ -10,6 +10,7 @@ export const outputsTable = pgTable("outputs", {
   code: text("code").notNull(),
   format: text("format").notNull(),
   separator: text("separator").notNull().default("_"),
+  order: integer("order").notNull().default(0),
   enabled: boolean("enabled").notNull().default(true),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),

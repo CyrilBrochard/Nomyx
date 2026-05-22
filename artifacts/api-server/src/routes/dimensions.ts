@@ -14,6 +14,7 @@ import {
   UpdateDimensionValueParams,
   DeleteDimensionValueParams,
   ListDimensionValuesParams,
+  ReorderDimensionsBody,
 } from "@workspace/api-zod";
 
 const router: IRouter = Router();
@@ -23,7 +24,7 @@ async function getDimensionsWithValues(teamId: number) {
     .select()
     .from(dimensionsTable)
     .where(eq(dimensionsTable.teamId, teamId))
-    .orderBy(asc(dimensionsTable.order));
+    .orderBy(asc(dimensionsTable.order), asc(dimensionsTable.id));
 
   const result = await Promise.all(
     dims.map(async (dim) => {
@@ -38,6 +39,47 @@ async function getDimensionsWithValues(teamId: number) {
 
   return result;
 }
+
+router.patch("/dimensions/reorder", requireAuth, async (req, res): Promise<void> => {
+  const teamId = req.user!.teamId;
+  const parsed = ReorderDimensionsBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+
+  const { orderedIds } = parsed.data;
+
+  const existing = await db
+    .select({ id: dimensionsTable.id })
+    .from(dimensionsTable)
+    .where(eq(dimensionsTable.teamId, teamId));
+
+  const existingIdSet = new Set(existing.map((d) => d.id));
+  const hasDuplicates = new Set(orderedIds).size !== orderedIds.length;
+  const mismatch =
+    hasDuplicates ||
+    orderedIds.length !== existingIdSet.size ||
+    orderedIds.some((id) => !existingIdSet.has(id));
+
+  if (mismatch) {
+    res.status(400).json({ error: "orderedIds must be an exact set of the team's dimension IDs" });
+    return;
+  }
+
+  await db.transaction(async (tx) => {
+    await Promise.all(
+      orderedIds.map((id, index) =>
+        tx
+          .update(dimensionsTable)
+          .set({ order: index })
+          .where(and(eq(dimensionsTable.id, id), eq(dimensionsTable.teamId, teamId)))
+      )
+    );
+  });
+
+  res.sendStatus(204);
+});
 
 router.get("/dimensions", requireAuth, async (req, res): Promise<void> => {
   const teamId = req.user!.teamId;

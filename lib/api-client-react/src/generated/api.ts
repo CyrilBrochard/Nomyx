@@ -35,6 +35,7 @@ import type {
   LoginBody,
   Output,
   RegisterBody,
+  ReorderBody,
   TeamConfig,
   TeamMember,
   UpdateDimensionBody,
@@ -1368,6 +1369,178 @@ export const useDeleteDimensionValue = <
   TContext
 > => {
   return useMutation(getDeleteDimensionValueMutationOptions(options));
+};
+
+/**
+ * @summary Batch update dimension order
+ */
+export const getReorderDimensionsUrl = () => {
+  return `/api/dimensions/reorder`;
+};
+
+export const reorderDimensions = async (
+  reorderBody: ReorderBody,
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(getReorderDimensionsUrl(), {
+    ...options,
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(reorderBody),
+  });
+};
+
+export const getReorderDimensionsMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof reorderDimensions>>,
+    TError,
+    { data: BodyType<ReorderBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof reorderDimensions>>,
+  TError,
+  { data: BodyType<ReorderBody> },
+  TContext
+> => {
+  const mutationKey = ["reorderDimensions"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof reorderDimensions>>,
+    { data: BodyType<ReorderBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return reorderDimensions(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ReorderDimensionsMutationResult = NonNullable<
+  Awaited<ReturnType<typeof reorderDimensions>>
+>;
+export type ReorderDimensionsMutationBody = BodyType<ReorderBody>;
+export type ReorderDimensionsMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Batch update dimension order
+ */
+export const useReorderDimensions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof reorderDimensions>>,
+    TError,
+    { data: BodyType<ReorderBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof reorderDimensions>>,
+  TError,
+  { data: BodyType<ReorderBody> },
+  TContext
+> => {
+  return useMutation(getReorderDimensionsMutationOptions(options));
+};
+
+/**
+ * @summary Batch update output order
+ */
+export const getReorderOutputsUrl = () => {
+  return `/api/outputs/reorder`;
+};
+
+export const reorderOutputs = async (
+  reorderBody: ReorderBody,
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(getReorderOutputsUrl(), {
+    ...options,
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(reorderBody),
+  });
+};
+
+export const getReorderOutputsMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof reorderOutputs>>,
+    TError,
+    { data: BodyType<ReorderBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof reorderOutputs>>,
+  TError,
+  { data: BodyType<ReorderBody> },
+  TContext
+> => {
+  const mutationKey = ["reorderOutputs"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof reorderOutputs>>,
+    { data: BodyType<ReorderBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return reorderOutputs(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ReorderOutputsMutationResult = NonNullable<
+  Awaited<ReturnType<typeof reorderOutputs>>
+>;
+export type ReorderOutputsMutationBody = BodyType<ReorderBody>;
+export type ReorderOutputsMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Batch update output order
+ */
+export const useReorderOutputs = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof reorderOutputs>>,
+    TError,
+    { data: BodyType<ReorderBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof reorderOutputs>>,
+  TError,
+  { data: BodyType<ReorderBody> },
+  TContext
+> => {
+  return useMutation(getReorderOutputsMutationOptions(options));
 };
 
 /**

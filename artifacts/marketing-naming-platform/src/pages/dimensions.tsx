@@ -9,11 +9,27 @@ import {
   useCreateDimensionValue,
   useUpdateDimensionValue,
   useDeleteDimensionValue,
+  useReorderDimensions,
   getListDimensionsQueryOptions,
   type DimensionWithValues,
   type DimensionValue,
   type ErrorType,
 } from "@workspace/api-client-react";
+import {
+  DndContext,
+  closestCenter,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  verticalListSortingStrategy,
+  useSortable,
+  arrayMove,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -29,6 +45,7 @@ import {
   ChevronDown,
   ChevronRight,
   Layers,
+  GripVertical,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -71,11 +88,150 @@ function toastError(toast: ReturnType<typeof useToast>["toast"], err: ErrorType<
   toast({ title: "Error", description: msg, variant: "destructive" });
 }
 
+interface SortableDimCardProps {
+  dim: DimensionWithValues;
+  isOpen: boolean;
+  onToggleExpand: () => void;
+  onEdit: () => void;
+  onDuplicate: () => void;
+  onDelete: () => void;
+  onToggleEnabled: () => void;
+  onAddValue: () => void;
+  onEditVal: (val: DimensionValue) => void;
+  onDeleteVal: (val: DimensionValue) => void;
+  onToggleValEnabled: (val: DimensionValue) => void;
+}
+
+function SortableDimCard({
+  dim,
+  isOpen,
+  onToggleExpand,
+  onEdit,
+  onDuplicate,
+  onDelete,
+  onToggleEnabled,
+  onAddValue,
+  onEditVal,
+  onDeleteVal,
+  onToggleValEnabled,
+}: SortableDimCardProps) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: dim.id,
+  });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+    zIndex: isDragging ? 10 : undefined,
+  };
+
+  const values = dim.values ?? [];
+
+  return (
+    <div ref={setNodeRef} style={style}>
+      <Card className={dim.enabled ? "" : "opacity-60"}>
+        <CardHeader className="py-3 px-4">
+          <div className="flex items-center gap-3">
+            <button
+              className="cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground touch-none shrink-0"
+              {...attributes}
+              {...listeners}
+              aria-label="Drag to reorder"
+            >
+              <GripVertical className="h-4 w-4" />
+            </button>
+            <Switch
+              checked={dim.enabled}
+              onCheckedChange={onToggleEnabled}
+              aria-label="Toggle enabled"
+            />
+            <button
+              className="flex items-center gap-2 flex-1 min-w-0 text-left"
+              onClick={onToggleExpand}
+            >
+              <span className="font-medium text-sm">{dim.name}</span>
+              <Badge variant="outline" className="text-xs font-mono py-0">[{dim.code}]</Badge>
+              <span className="text-xs text-muted-foreground ml-auto mr-2">{values.length} value{values.length !== 1 ? "s" : ""}</span>
+              {isOpen ? <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" /> : <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />}
+            </button>
+            <div className="flex items-center gap-1 shrink-0">
+              <Button variant="ghost" size="icon" onClick={onEdit}>
+                <Pencil className="h-3.5 w-3.5" />
+              </Button>
+              <Button variant="ghost" size="icon" onClick={onDuplicate}>
+                <Copy className="h-3.5 w-3.5" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="text-muted-foreground hover:text-destructive"
+                onClick={onDelete}
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+          </div>
+        </CardHeader>
+
+        {isOpen && (
+          <CardContent className="pt-0 pb-4 px-4">
+            <div className="border-t pt-4 space-y-2">
+              {values.length === 0 ? (
+                <p className="text-xs text-muted-foreground text-center py-2">No values — add some below.</p>
+              ) : (
+                values.map((val) => (
+                  <div
+                    key={val.id}
+                    className={`flex items-center gap-3 rounded-md border bg-secondary/20 px-3 py-2 ${val.enabled ? "" : "opacity-50"}`}
+                  >
+                    <Switch
+                      checked={val.enabled}
+                      onCheckedChange={() => onToggleValEnabled(val)}
+                      aria-label="Toggle value"
+                      className="scale-90"
+                    />
+                    <span className="text-sm flex-1">{val.label}</span>
+                    <Badge variant="secondary" className="text-xs font-mono">{val.shortCode}</Badge>
+                    <div className="flex items-center gap-0.5">
+                      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onEditVal(val)}>
+                        <Pencil className="h-3 w-3" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                        onClick={() => onDeleteVal(val)}
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  </div>
+                ))
+              )}
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full mt-2 border-dashed"
+                onClick={onAddValue}
+              >
+                <Plus className="h-3.5 w-3.5 mr-1.5" />
+                Add value
+              </Button>
+            </div>
+          </CardContent>
+        )}
+      </Card>
+    </div>
+  );
+}
+
 export default function Dimensions() {
   const queryClient = useQueryClient();
-  const { data: dimensions = [], isLoading } = useListDimensions();
+  const { data: serverDimensions = [], isLoading } = useListDimensions();
   const { toast } = useToast();
 
+  const [localOrder, setLocalOrder] = useState<number[] | null>(null);
   const [expandedIds, setExpandedIds] = useState<Set<number>>(new Set());
   const [dimDialog, setDimDialog] = useState<DimDialog>({ open: false, editTarget: null });
   const [dimForm, setDimForm] = useState<DimForm>(EMPTY_DIM);
@@ -85,8 +241,13 @@ export default function Dimensions() {
   const [valForm, setValForm] = useState<ValForm>(EMPTY_VAL);
   const [deleteValTarget, setDeleteValTarget] = useState<DeleteValTarget | null>(null);
 
+  const dimensionMap = new Map(serverDimensions.map((d) => [d.id, d]));
+  const orderedIds = localOrder ?? serverDimensions.map((d) => d.id);
+  const dimensions = orderedIds.map((id) => dimensionMap.get(id)).filter(Boolean) as DimensionWithValues[];
+
   function invalidate() {
     queryClient.invalidateQueries({ queryKey: getListDimensionsQueryOptions().queryKey });
+    setLocalOrder(null);
   }
 
   function toggleExpanded(id: number) {
@@ -126,6 +287,16 @@ export default function Dimensions() {
     },
   });
 
+  const { mutate: reorderDimensions } = useReorderDimensions({
+    mutation: {
+      onSuccess() { invalidate(); },
+      onError(err) {
+        toastError(toast, err);
+        setLocalOrder(null);
+      },
+    },
+  });
+
   const { mutate: createValue, isPending: isCreatingVal } = useCreateDimensionValue({
     mutation: {
       onSuccess() { invalidate(); setValDialog({ open: false, dimensionId: null, editTarget: null }); toast({ title: "Value added" }); },
@@ -146,6 +317,21 @@ export default function Dimensions() {
       onError(err) { toastError(toast, err); },
     },
   });
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
+  );
+
+  function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+
+    const oldIndex = orderedIds.indexOf(active.id as number);
+    const newIndex = orderedIds.indexOf(over.id as number);
+    const newOrder = arrayMove(orderedIds, oldIndex, newIndex);
+    setLocalOrder(newOrder);
+    reorderDimensions({ data: { orderedIds: newOrder } });
+  }
 
   function openCreateDim() {
     const maxOrder = dimensions.reduce((max, d) => Math.max(max, d.order), -1);
@@ -223,100 +409,28 @@ export default function Dimensions() {
           </CardContent>
         </Card>
       ) : (
-        <div className="space-y-3">
-          {dimensions.map((dim) => {
-            const isOpen = expandedIds.has(dim.id);
-            const values = dim.values ?? [];
-            return (
-              <Card key={dim.id} className={dim.enabled ? "" : "opacity-60"}>
-                <CardHeader className="py-3 px-4">
-                  <div className="flex items-center gap-3">
-                    <Switch
-                      checked={dim.enabled}
-                      onCheckedChange={() => updateDimension({ id: dim.id, data: { enabled: !dim.enabled } })}
-                      aria-label="Toggle enabled"
-                    />
-                    <button
-                      className="flex items-center gap-2 flex-1 min-w-0 text-left"
-                      onClick={() => toggleExpanded(dim.id)}
-                    >
-                      <span className="font-medium text-sm">{dim.name}</span>
-                      <Badge variant="outline" className="text-xs font-mono py-0">[{dim.code}]</Badge>
-                      <span className="text-xs text-muted-foreground ml-1">order: {dim.order}</span>
-                      <span className="text-xs text-muted-foreground ml-auto mr-2">{values.length} value{values.length !== 1 ? "s" : ""}</span>
-                      {isOpen ? <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" /> : <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />}
-                    </button>
-                    <div className="flex items-center gap-1 shrink-0">
-                      <Button variant="ghost" size="icon" onClick={() => openEditDim(dim)}>
-                        <Pencil className="h-3.5 w-3.5" />
-                      </Button>
-                      <Button variant="ghost" size="icon" onClick={() => duplicateDimension({ id: dim.id })}>
-                        <Copy className="h-3.5 w-3.5" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="text-muted-foreground hover:text-destructive"
-                        onClick={() => setDeleteDimTarget(dim)}
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
-                    </div>
-                  </div>
-                </CardHeader>
-
-                {isOpen && (
-                  <CardContent className="pt-0 pb-4 px-4">
-                    <div className="border-t pt-4 space-y-2">
-                      {values.length === 0 ? (
-                        <p className="text-xs text-muted-foreground text-center py-2">No values — add some below.</p>
-                      ) : (
-                        values.map((val) => (
-                          <div
-                            key={val.id}
-                            className={`flex items-center gap-3 rounded-md border bg-secondary/20 px-3 py-2 ${val.enabled ? "" : "opacity-50"}`}
-                          >
-                            <Switch
-                              checked={val.enabled}
-                              onCheckedChange={() => updateValue({ id: dim.id, valueId: val.id, data: { enabled: !val.enabled } })}
-                              aria-label="Toggle value"
-                              className="scale-90"
-                            />
-                            <span className="text-sm flex-1">{val.label}</span>
-                            <span className="text-xs text-muted-foreground">order: {val.order}</span>
-                            <Badge variant="secondary" className="text-xs font-mono">{val.shortCode}</Badge>
-                            <div className="flex items-center gap-0.5">
-                              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEditVal(dim, val)}>
-                                <Pencil className="h-3 w-3" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-7 w-7 text-muted-foreground hover:text-destructive"
-                                onClick={() => setDeleteValTarget({ dimension: dim, value: val })}
-                              >
-                                <Trash2 className="h-3 w-3" />
-                              </Button>
-                            </div>
-                          </div>
-                        ))
-                      )}
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="w-full mt-2 border-dashed"
-                        onClick={() => openCreateVal(dim.id, values)}
-                      >
-                        <Plus className="h-3.5 w-3.5 mr-1.5" />
-                        Add value
-                      </Button>
-                    </div>
-                  </CardContent>
-                )}
-              </Card>
-            );
-          })}
-        </div>
+        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+          <SortableContext items={orderedIds} strategy={verticalListSortingStrategy}>
+            <div className="space-y-3">
+              {dimensions.map((dim) => (
+                <SortableDimCard
+                  key={dim.id}
+                  dim={dim}
+                  isOpen={expandedIds.has(dim.id)}
+                  onToggleExpand={() => toggleExpanded(dim.id)}
+                  onEdit={() => openEditDim(dim)}
+                  onDuplicate={() => duplicateDimension({ id: dim.id })}
+                  onDelete={() => setDeleteDimTarget(dim)}
+                  onToggleEnabled={() => updateDimension({ id: dim.id, data: { enabled: !dim.enabled } })}
+                  onAddValue={() => openCreateVal(dim.id, dim.values ?? [])}
+                  onEditVal={(val) => openEditVal(dim, val)}
+                  onDeleteVal={(val) => setDeleteValTarget({ dimension: dim, value: val })}
+                  onToggleValEnabled={(val) => updateValue({ id: dim.id, valueId: val.id, data: { enabled: !val.enabled } })}
+                />
+              ))}
+            </div>
+          </SortableContext>
+        </DndContext>
       )}
 
       <Dialog open={dimDialog.open} onOpenChange={(v) => setDimDialog({ open: v, editTarget: dimDialog.editTarget })}>
@@ -343,17 +457,6 @@ export default function Dimensions() {
                   className="font-mono"
                 />
               </div>
-            </div>
-            <div className="space-y-2">
-              <Label>Order</Label>
-              <Input
-                type="number"
-                min={0}
-                placeholder="0"
-                value={dimForm.order}
-                onChange={(e) => setDimForm({ ...dimForm, order: e.target.value })}
-              />
-              <p className="text-xs text-muted-foreground">Lower numbers appear first in the Generator.</p>
             </div>
             <p className="text-xs text-muted-foreground">
               Used in format templates as <code className="bg-muted px-1 rounded">[{dimForm.code || "CODE"}]</code>.
