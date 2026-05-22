@@ -155,6 +155,39 @@ async function acceptInviteHandler(req: Request, res: Response): Promise<void> {
   });
 }
 
+router.get("/auth/invite/preview", async (req: Request, res: Response): Promise<void> => {
+  const token = typeof req.query.token === "string" ? req.query.token : "";
+  if (!token) {
+    res.status(400).json({ error: "Missing token" });
+    return;
+  }
+
+  const now = new Date();
+  const [invite] = await db
+    .select()
+    .from(invitesTable)
+    .where(
+      and(
+        eq(invitesTable.token, token),
+        isNull(invitesTable.usedAt),
+        gt(invitesTable.expiresAt, now),
+      ),
+    );
+
+  if (!invite) {
+    res.status(404).json({ error: "Invite link is invalid or has expired" });
+    return;
+  }
+
+  const [team] = await db.select().from(teamsTable).where(eq(teamsTable.id, invite.teamId));
+  const [owner] = await db
+    .select({ email: usersTable.email })
+    .from(usersTable)
+    .where(and(eq(usersTable.teamId, invite.teamId), eq(usersTable.role, "owner")));
+
+  res.json({ teamName: team.name, inviterEmail: owner?.email ?? null });
+});
+
 router.post("/auth/register", registerHandler);
 router.post("/auth/login", loginHandler);
 router.post("/register", registerHandler);

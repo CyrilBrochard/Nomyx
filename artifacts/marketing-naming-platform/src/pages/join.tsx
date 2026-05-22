@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useLocation, useSearch } from "wouter";
-import { useAcceptInvite, type ErrorType } from "@workspace/api-client-react";
+import { useAcceptInvite, useGetInvitePreview, type ErrorType } from "@workspace/api-client-react";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,6 +18,11 @@ export default function Join() {
   const { login } = useAuth();
   const [, setLocation] = useLocation();
   const { toast } = useToast();
+
+  const { data: preview, isLoading: previewLoading, isError: previewError } = useGetInvitePreview(
+    { token },
+    { query: { enabled: !!token, retry: false } },
+  );
 
   const { mutate, isPending } = useAcceptInvite({
     mutation: {
@@ -45,6 +50,10 @@ export default function Join() {
     mutate({ data: { token, email, password } });
   }
 
+  const teamName = preview?.teamName;
+  const inviterEmail = preview?.inviterEmail;
+  const inviteInvalid = !token || (!previewLoading && previewError);
+
   return (
     <div className="min-h-[100dvh] flex items-center justify-center bg-background p-4">
       <Card className="w-full max-w-sm">
@@ -53,12 +62,23 @@ export default function Join() {
             N
           </div>
           <CardTitle className="text-2xl">Join the team</CardTitle>
-          <CardDescription>You've been invited — create your account to get started</CardDescription>
+          {previewLoading && token ? (
+            <CardDescription>Loading invite details…</CardDescription>
+          ) : teamName ? (
+            <CardDescription>
+              You've been invited to join <span className="font-semibold text-foreground">{teamName}</span>
+              {inviterEmail ? (
+                <> by <span className="font-semibold text-foreground">{inviterEmail}</span></>
+              ) : null}
+            </CardDescription>
+          ) : (
+            <CardDescription>You've been invited — create your account to get started</CardDescription>
+          )}
         </CardHeader>
         <CardContent>
-          {!token ? (
+          {inviteInvalid ? (
             <p className="text-sm text-destructive text-center">
-              This invite link appears to be invalid. Please ask your team owner for a new one.
+              This invite link appears to be invalid or has expired. Please ask your team owner for a new one.
             </p>
           ) : (
             <form onSubmit={handleSubmit} className="space-y-4">
@@ -87,8 +107,8 @@ export default function Join() {
                   minLength={6}
                 />
               </div>
-              <Button type="submit" className="w-full" disabled={isPending || !token}>
-                {isPending ? "Joining…" : "Join team"}
+              <Button type="submit" className="w-full" disabled={isPending || !token || previewLoading}>
+                {isPending ? "Joining…" : teamName ? `Join ${teamName}` : "Join team"}
               </Button>
             </form>
           )}

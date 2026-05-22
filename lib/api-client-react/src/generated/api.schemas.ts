@@ -51,6 +51,11 @@ export interface InviteResponse {
   expiresAt: string;
 }
 
+export interface InvitePreview {
+  teamName: string;
+  inviterEmail: string | null;
+}
+
 export interface AcceptInviteBody {
   token: string;
   email: string;
@@ -211,3 +216,7 @@ export interface DashboardStats {
   totalValues: number;
   teamName: string;
 }
+
+export type GetInvitePreviewParams = {
+  token: string;
+};

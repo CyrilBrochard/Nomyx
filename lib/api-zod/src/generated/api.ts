@@ -75,6 +75,18 @@ export const RemoveTeamMemberParams = zod.object({
 });
 
 /**
+ * @summary Get team preview info for a valid invite token (no auth required)
+ */
+export const GetInvitePreviewQueryParams = zod.object({
+  token: zod.coerce.string(),
+});
+
+export const GetInvitePreviewResponse = zod.object({
+  teamName: zod.string(),
+  inviterEmail: zod.string().nullable(),
+});
+
+/**
  * @summary Register a new user under an existing team using an invite token
  */
 export const acceptInviteBodyPasswordMin = 6;

@@ -29,8 +29,10 @@ import type {
   ErrorResponse,
   GenerateBody,
   GenerateResponse,
+  GetInvitePreviewParams,
   HealthStatus,
   ImportResult,
+  InvitePreview,
   InviteResponse,
   LoginBody,
   Output,
@@ -603,6 +605,103 @@ export const useCreateInvite = <
 > => {
   return useMutation(getCreateInviteMutationOptions(options));
 };
+
+/**
+ * @summary Get team preview info for a valid invite token (no auth required)
+ */
+export const getGetInvitePreviewUrl = (params: GetInvitePreviewParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/auth/invite/preview?${stringifiedParams}`
+    : `/api/auth/invite/preview`;
+};
+
+export const getInvitePreview = async (
+  params: GetInvitePreviewParams,
+  options?: RequestInit,
+): Promise<InvitePreview> => {
+  return customFetch<InvitePreview>(getGetInvitePreviewUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetInvitePreviewQueryKey = (
+  params?: GetInvitePreviewParams,
+) => {
+  return [`/api/auth/invite/preview`, ...(params ? [params] : [])] as const;
+};
+
+export const getGetInvitePreviewQueryOptions = <
+  TData = Awaited<ReturnType<typeof getInvitePreview>>,
+  TError = ErrorType<ErrorResponse>,
+>(
+  params: GetInvitePreviewParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getInvitePreview>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetInvitePreviewQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getInvitePreview>>
+  > = ({ signal }) => getInvitePreview(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getInvitePreview>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetInvitePreviewQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getInvitePreview>>
+>;
+export type GetInvitePreviewQueryError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Get team preview info for a valid invite token (no auth required)
+ */
+
+export function useGetInvitePreview<
+  TData = Awaited<ReturnType<typeof getInvitePreview>>,
+  TError = ErrorType<ErrorResponse>,
+>(
+  params: GetInvitePreviewParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getInvitePreview>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetInvitePreviewQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
 
 /**
  * @summary Register a new user under an existing team using an invite token
