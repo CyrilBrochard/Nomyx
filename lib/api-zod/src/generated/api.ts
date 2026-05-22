@@ -68,6 +68,13 @@ export const ListTeamMembersResponseItem = zod.object({
 export const ListTeamMembersResponse = zod.array(ListTeamMembersResponseItem);
 
 /**
+ * @summary Remove a member from the current team (owner only)
+ */
+export const RemoveTeamMemberParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+/**
  * @summary Register a new user under an existing team using an invite token
  */
 export const acceptInviteBodyPasswordMin = 6;

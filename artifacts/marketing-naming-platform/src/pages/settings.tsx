@@ -3,14 +3,16 @@ import {
   useGetMe,
   useListTeamMembers,
   useCreateInvite,
+  useRemoveTeamMember,
   customFetch,
   type ErrorType,
 } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { Download, Upload, Settings2, Users, Link, Copy, Check } from "lucide-react";
+import { Download, Upload, Settings2, Users, Link, Copy, Check, UserMinus } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { useQueryClient } from "@tanstack/react-query";
 
 function toastError(toast: ReturnType<typeof useToast>["toast"], err: ErrorType<unknown>) {
   const data = err.data as Record<string, string> | null;
@@ -22,11 +24,13 @@ export default function Settings() {
   const { data: user } = useGetMe();
   const { data: members } = useListTeamMembers();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const fileRef = useRef<HTMLInputElement>(null);
   const [isImporting, setIsImporting] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [inviteUrl, setInviteUrl] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [confirmRemoveId, setConfirmRemoveId] = useState<number | null>(null);
 
   const { mutate: generateInvite, isPending: isGeneratingInvite } = useCreateInvite({
     mutation: {
@@ -36,6 +40,20 @@ export default function Settings() {
       },
       onError(err: ErrorType<unknown>) {
         toastError(toast, err);
+      },
+    },
+  });
+
+  const { mutate: removeMember, isPending: isRemoving } = useRemoveTeamMember({
+    mutation: {
+      onSuccess() {
+        toast({ title: "Member removed", description: "The member has been removed from your team." });
+        setConfirmRemoveId(null);
+        queryClient.invalidateQueries({ queryKey: ["/api/team/members"] });
+      },
+      onError(err: ErrorType<unknown>) {
+        toastError(toast, err);
+        setConfirmRemoveId(null);
       },
     },
   });
@@ -145,9 +163,46 @@ export default function Settings() {
                         Joined {new Date(member.createdAt).toLocaleDateString()}
                       </p>
                     </div>
-                    <Badge variant={member.role === "owner" ? "default" : "secondary"}>
-                      {member.role}
-                    </Badge>
+                    <div className="flex items-center gap-2">
+                      <Badge variant={member.role === "owner" ? "default" : "secondary"}>
+                        {member.role}
+                      </Badge>
+                      {isOwner && member.role !== "owner" && (
+                        confirmRemoveId === member.id ? (
+                          <div className="flex items-center gap-1">
+                            <span className="text-xs text-muted-foreground">Remove?</span>
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              className="h-7 px-2 text-xs"
+                              disabled={isRemoving}
+                              onClick={() => removeMember({ id: member.id })}
+                            >
+                              Yes
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-7 px-2 text-xs"
+                              disabled={isRemoving}
+                              onClick={() => setConfirmRemoveId(null)}
+                            >
+                              Cancel
+                            </Button>
+                          </div>
+                        ) : (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-7 px-2 text-xs text-muted-foreground hover:text-destructive"
+                            onClick={() => setConfirmRemoveId(member.id)}
+                          >
+                            <UserMinus className="h-3.5 w-3.5 mr-1" />
+                            Remove
+                          </Button>
+                        )
+                      )}
+                    </div>
                   </div>
                 ))
               ) : (
@@ -161,7 +216,7 @@ export default function Settings() {
               <div className="space-y-3">
                 <Button
                   variant="outline"
-                  onClick={() => generateInvite({})}
+                  onClick={() => generateInvite()}
                   disabled={isGeneratingInvite}
                   className="w-full"
                 >

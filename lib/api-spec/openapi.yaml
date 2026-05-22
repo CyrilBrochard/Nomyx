@@ -146,6 +146,47 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /team/members/{id}:
+    delete:
+      operationId: removeTeamMember
+      tags: [team]
+      summary: Remove a member from the current team (owner only)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Member removed
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden – only owners can remove members
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Member not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /team/invite:
     post:
       operationId: createInvite

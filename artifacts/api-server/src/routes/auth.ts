@@ -164,7 +164,7 @@ router.post("/auth/invite/accept", acceptInviteHandler);
 router.get("/auth/me", requireAuth, async (req: Request, res: Response): Promise<void> => {
   const { userId, teamId, email } = req.user!;
 
-  const [userRecord] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
+  const [userRecord] = await db.select({ role: usersTable.role }).from(usersTable).where(eq(usersTable.id, userId));
   const [team] = await db.select().from(teamsTable).where(eq(teamsTable.id, teamId));
 
   res.json({

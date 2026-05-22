@@ -1,5 +1,7 @@
 import jwt from "jsonwebtoken";
 import { Request, Response, NextFunction } from "express";
+import { db, usersTable } from "@workspace/db";
+import { eq } from "drizzle-orm";
 
 const rawSecret = process.env.JWT_SECRET;
 if (!rawSecret) {
@@ -29,7 +31,7 @@ declare global {
   }
 }
 
-export function requireAuth(req: Request, res: Response, next: NextFunction): void {
+export async function requireAuth(req: Request, res: Response, next: NextFunction): Promise<void> {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
     res.status(401).json({ error: "Unauthorized" });
@@ -37,11 +39,24 @@ export function requireAuth(req: Request, res: Response, next: NextFunction): vo
   }
 
   const token = authHeader.slice(7);
+  let payload: JwtPayload;
   try {
-    const payload = verifyToken(token);
-    req.user = payload;
-    next();
+    payload = verifyToken(token);
   } catch {
     res.status(401).json({ error: "Invalid or expired token" });
+    return;
   }
+
+  const [user] = await db
+    .select({ id: usersTable.id, teamId: usersTable.teamId })
+    .from(usersTable)
+    .where(eq(usersTable.id, payload.userId));
+
+  if (!user || user.teamId !== payload.teamId) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+
+  req.user = payload;
+  next();
 }

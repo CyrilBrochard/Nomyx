@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { setAuthTokenGetter } from "@workspace/api-client-react";
+import { setAuthTokenGetter, setUnauthorizedHandler } from "@workspace/api-client-react";
 
 export const AUTH_TOKEN_KEY = "auth_token";
 
@@ -24,11 +24,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (storedToken) {
       setToken(storedToken);
     }
-    
-    // Register the getter for the API client
+
     setAuthTokenGetter(() => localStorage.getItem(AUTH_TOKEN_KEY));
-    
+    setUnauthorizedHandler(() => {
+      localStorage.removeItem(AUTH_TOKEN_KEY);
+      setToken(null);
+      setAuthTokenGetter(() => null);
+      setUnauthorizedHandler(null);
+    });
+
     setIsReady(true);
+
+    return () => {
+      setUnauthorizedHandler(null);
+    };
   }, []);
 
   const login = (newToken: string) => {

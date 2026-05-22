@@ -440,6 +440,90 @@ export function useListTeamMembers<
 }
 
 /**
+ * @summary Remove a member from the current team (owner only)
+ */
+export const getRemoveTeamMemberUrl = (id: number) => {
+  return `/api/team/members/${id}`;
+};
+
+export const removeTeamMember = async (
+  id: number,
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(getRemoveTeamMemberUrl(id), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getRemoveTeamMemberMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof removeTeamMember>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof removeTeamMember>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["removeTeamMember"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof removeTeamMember>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return removeTeamMember(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RemoveTeamMemberMutationResult = NonNullable<
+  Awaited<ReturnType<typeof removeTeamMember>>
+>;
+
+export type RemoveTeamMemberMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Remove a member from the current team (owner only)
+ */
+export const useRemoveTeamMember = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof removeTeamMember>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof removeTeamMember>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getRemoveTeamMemberMutationOptions(options));
+};
+
+/**
  * @summary Generate an invite link for the current team (owner only)
  */
 export const getCreateInviteUrl = () => {
