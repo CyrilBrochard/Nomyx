@@ -40,6 +40,7 @@ import type {
   ReorderBody,
   TeamConfig,
   TeamMember,
+  TransferOwnershipBody,
   UpdateDimensionBody,
   UpdateDimensionValueBody,
   UpdateOutputBody,
@@ -523,6 +524,92 @@ export const useRemoveTeamMember = <
   TContext
 > => {
   return useMutation(getRemoveTeamMemberMutationOptions(options));
+};
+
+/**
+ * @summary Transfer team ownership to another member (owner only)
+ */
+export const getTransferOwnershipUrl = (id: number) => {
+  return `/api/team/members/${id}/role`;
+};
+
+export const transferOwnership = async (
+  id: number,
+  transferOwnershipBody: TransferOwnershipBody,
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(getTransferOwnershipUrl(id), {
+    ...options,
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(transferOwnershipBody),
+  });
+};
+
+export const getTransferOwnershipMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof transferOwnership>>,
+    TError,
+    { id: number; data: TransferOwnershipBody },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof transferOwnership>>,
+  TError,
+  { id: number; data: TransferOwnershipBody },
+  TContext
+> => {
+  const mutationKey = ["transferOwnership"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof transferOwnership>>,
+    { id: number; data: TransferOwnershipBody }
+  > = (props) => {
+    const { id, data } = props ?? {};
+    return transferOwnership(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type TransferOwnershipMutationResult = NonNullable<
+  Awaited<ReturnType<typeof transferOwnership>>
+>;
+
+export type TransferOwnershipMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Transfer team ownership to another member (owner only)
+ */
+export const useTransferOwnership = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof transferOwnership>>,
+    TError,
+    { id: number; data: TransferOwnershipBody },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof transferOwnership>>,
+  TError,
+  { id: number; data: TransferOwnershipBody },
+  TContext
+> => {
+  return useMutation(getTransferOwnershipMutationOptions(options));
 };
 
 /**

@@ -146,6 +146,53 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /team/members/{id}/role:
+    patch:
+      operationId: transferOwnership
+      tags: [team]
+      summary: Transfer team ownership to another member (owner only)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TransferOwnershipBody"
+      responses:
+        "204":
+          description: Ownership transferred
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden – only owners can transfer ownership
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Member not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /team/members/{id}:
     delete:
       operationId: removeTeamMember
@@ -1273,6 +1320,15 @@ components:
             $ref: "#/components/schemas/GeneratedOutput"
       required:
         - outputs
+
+    TransferOwnershipBody:
+      type: object
+      properties:
+        role:
+          type: string
+          enum: [owner]
+      required:
+        - role
 
     TeamConfig:
       type: object

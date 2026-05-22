@@ -4,13 +4,14 @@ import {
   useListTeamMembers,
   useCreateInvite,
   useRemoveTeamMember,
+  useTransferOwnership,
   customFetch,
   type ErrorType,
 } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { Download, Upload, Settings2, Users, Link, Copy, Check, UserMinus } from "lucide-react";
+import { Download, Upload, Settings2, Users, Link, Copy, Check, UserMinus, ShieldCheck } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useQueryClient } from "@tanstack/react-query";
 
@@ -31,6 +32,7 @@ export default function Settings() {
   const [inviteUrl, setInviteUrl] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [confirmRemoveId, setConfirmRemoveId] = useState<number | null>(null);
+  const [confirmTransferId, setConfirmTransferId] = useState<number | null>(null);
 
   const { mutate: generateInvite, isPending: isGeneratingInvite } = useCreateInvite({
     mutation: {
@@ -54,6 +56,21 @@ export default function Settings() {
       onError(err: ErrorType<unknown>) {
         toastError(toast, err);
         setConfirmRemoveId(null);
+      },
+    },
+  });
+
+  const { mutate: transferOwnership, isPending: isTransferring } = useTransferOwnership({
+    mutation: {
+      onSuccess() {
+        toast({ title: "Ownership transferred", description: "Your role has been changed to member." });
+        setConfirmTransferId(null);
+        queryClient.invalidateQueries({ queryKey: ["/api/team/members"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
+      },
+      onError(err: ErrorType<unknown>) {
+        toastError(toast, err);
+        setConfirmTransferId(null);
       },
     },
   });
@@ -168,39 +185,74 @@ export default function Settings() {
                         {member.role}
                       </Badge>
                       {isOwner && member.role !== "owner" && (
-                        confirmRemoveId === member.id ? (
-                          <div className="flex items-center gap-1">
-                            <span className="text-xs text-muted-foreground">Remove?</span>
-                            <Button
-                              size="sm"
-                              variant="destructive"
-                              className="h-7 px-2 text-xs"
-                              disabled={isRemoving}
-                              onClick={() => removeMember({ id: member.id })}
-                            >
-                              Yes
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="h-7 px-2 text-xs"
-                              disabled={isRemoving}
-                              onClick={() => setConfirmRemoveId(null)}
-                            >
-                              Cancel
-                            </Button>
-                          </div>
-                        ) : (
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="h-7 px-2 text-xs text-muted-foreground hover:text-destructive"
-                            onClick={() => setConfirmRemoveId(member.id)}
-                          >
-                            <UserMinus className="h-3.5 w-3.5 mr-1" />
-                            Remove
-                          </Button>
-                        )
+                        <>
+                          {confirmTransferId === member.id ? (
+                            <div className="flex items-center gap-1">
+                              <span className="text-xs text-muted-foreground">Make owner?</span>
+                              <Button
+                                size="sm"
+                                variant="default"
+                                className="h-7 px-2 text-xs"
+                                disabled={isTransferring}
+                                onClick={() => transferOwnership({ id: member.id, data: { role: "owner" } })}
+                              >
+                                Yes
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-7 px-2 text-xs"
+                                disabled={isTransferring}
+                                onClick={() => setConfirmTransferId(null)}
+                              >
+                                Cancel
+                              </Button>
+                            </div>
+                          ) : confirmRemoveId === member.id ? (
+                            <div className="flex items-center gap-1">
+                              <span className="text-xs text-muted-foreground">Remove?</span>
+                              <Button
+                                size="sm"
+                                variant="destructive"
+                                className="h-7 px-2 text-xs"
+                                disabled={isRemoving}
+                                onClick={() => removeMember({ id: member.id })}
+                              >
+                                Yes
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-7 px-2 text-xs"
+                                disabled={isRemoving}
+                                onClick={() => setConfirmRemoveId(null)}
+                              >
+                                Cancel
+                              </Button>
+                            </div>
+                          ) : (
+                            <>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-7 px-2 text-xs text-muted-foreground hover:text-primary"
+                                onClick={() => setConfirmTransferId(member.id)}
+                              >
+                                <ShieldCheck className="h-3.5 w-3.5 mr-1" />
+                                Make owner
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-7 px-2 text-xs text-muted-foreground hover:text-destructive"
+                                onClick={() => setConfirmRemoveId(member.id)}
+                              >
+                                <UserMinus className="h-3.5 w-3.5 mr-1" />
+                                Remove
+                              </Button>
+                            </>
+                          )}
+                        </>
                       )}
                     </div>
                   </div>

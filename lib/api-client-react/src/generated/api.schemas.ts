@@ -45,6 +45,10 @@ export interface TeamMember {
   createdAt: string;
 }
 
+export interface TransferOwnershipBody {
+  role: "owner";
+}
+
 export interface InviteResponse {
   inviteUrl: string;
   token: string;

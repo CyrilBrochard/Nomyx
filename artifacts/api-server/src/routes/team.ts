@@ -51,6 +51,59 @@ router.post("/team/invite", requireAuth, async (req: Request, res: Response): Pr
   res.status(201).json({ inviteUrl, token, expiresAt });
 });
 
+router.patch("/team/members/:id/role", requireAuth, async (req: Request, res: Response): Promise<void> => {
+  const { userId, teamId } = req.user!;
+
+  const [requestingUser] = await db
+    .select({ role: usersTable.role })
+    .from(usersTable)
+    .where(eq(usersTable.id, userId));
+
+  if (!requestingUser || requestingUser.role !== "owner") {
+    res.status(403).json({ error: "Only team owners can transfer ownership" });
+    return;
+  }
+
+  const targetId = parseInt(req.params["id"] as string, 10);
+  if (isNaN(targetId)) {
+    res.status(400).json({ error: "Invalid member id" });
+    return;
+  }
+
+  if (targetId === userId) {
+    res.status(400).json({ error: "You are already the owner" });
+    return;
+  }
+
+  const { role } = req.body as { role?: string };
+  if (role !== "owner") {
+    res.status(400).json({ error: "Invalid role. Only 'owner' is accepted." });
+    return;
+  }
+
+  const [targetUser] = await db
+    .select({ id: usersTable.id, role: usersTable.role })
+    .from(usersTable)
+    .where(and(eq(usersTable.id, targetId), eq(usersTable.teamId, teamId)));
+
+  if (!targetUser) {
+    res.status(404).json({ error: "Member not found" });
+    return;
+  }
+
+  await db
+    .update(usersTable)
+    .set({ role: "owner" })
+    .where(and(eq(usersTable.id, targetId), eq(usersTable.teamId, teamId)));
+
+  await db
+    .update(usersTable)
+    .set({ role: "member" })
+    .where(and(eq(usersTable.id, userId), eq(usersTable.teamId, teamId)));
+
+  res.status(204).send();
+});
+
 router.delete("/team/members/:id", requireAuth, async (req: Request, res: Response): Promise<void> => {
   const { userId, teamId } = req.user!;
 
